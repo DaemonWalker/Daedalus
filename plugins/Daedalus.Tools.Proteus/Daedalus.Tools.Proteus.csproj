@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Proteus：格式化工具插件（ITool）。插件只允许依赖 Daedalus.Abstractions（规范 §8）。 -->
+  <PropertyGroup>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Daedalus.Abstractions\Daedalus.Abstractions.csproj" />
+  </ItemGroup>
+
+  <!-- 格式化器是嵌套在本目录下的独立工程（架构 §2），默认通配会把它们的源码与 obj 生成文件
+       算进本工程，需排除 -->
+  <ItemGroup>
+    <Compile Remove="Daedalus.Formatters.Json/**/*.cs" />
+    <Compile Remove="Daedalus.Formatters.Xml/**/*.cs" />
+    <None Remove="Daedalus.Formatters.Json/**" />
+    <None Remove="Daedalus.Formatters.Xml/**" />
+    <EmbeddedResource Remove="Daedalus.Formatters.Json/**" />
+    <EmbeddedResource Remove="Daedalus.Formatters.Xml/**" />
+  </ItemGroup>
+
+  <!-- 生成后事件（架构 §5.3）：产物拷贝到 App 输出目录 plugins/ -->
+  <PropertyGroup>
+    <AppPluginsDir>$(MSBuildProjectDirectory)\..\..\src\Daedalus.App\bin\$(Configuration)\$(TargetFramework)\plugins\</AppPluginsDir>
+  </PropertyGroup>
+  <Target Name="DeployPlugin" AfterTargets="Build">
+    <ItemGroup>
+      <PluginArtifacts Include="$(TargetPath)" />
+      <PluginArtifacts Include="$(TargetDir)$(TargetName).pdb" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PluginArtifacts)" DestinationFolder="$(AppPluginsDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

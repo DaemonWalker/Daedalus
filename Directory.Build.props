@@ -1,0 +1,16 @@
+<Project>
+
+  <!-- 全解决方案统一设置（代码规范 §1）。本仓库仅面向 Windows，统一 net10.0-windows；
+       Hosting 等不使用 WinForms 的库不引用桌面 SDK（不设 UseWindowsForms），仅是目标平台为 Windows。 -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <!-- 规范 §1：分析器警告按错误对待 -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+  </PropertyGroup>
+
+</Project>

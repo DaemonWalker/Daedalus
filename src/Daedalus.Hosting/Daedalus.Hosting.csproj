@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 插件基础设施：扫描、加载、生命周期。不依赖 WinForms（架构 §3），可独立单测。 -->
+  <ItemGroup>
+    <ProjectReference Include="..\Daedalus.Abstractions\Daedalus.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

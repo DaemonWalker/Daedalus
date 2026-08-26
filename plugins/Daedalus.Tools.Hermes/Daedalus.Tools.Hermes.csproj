@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Hermes：HTTP 客户端工具插件（ITool）。插件只允许依赖 Daedalus.Abstractions（规范 §8）。 -->
+  <PropertyGroup>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Daedalus.Abstractions\Daedalus.Abstractions.csproj" />
+  </ItemGroup>
+
+  <!-- 生成后事件（架构 §5.3）：产物拷贝到 App 输出目录 plugins/，保证 F5 调试即可用 -->
+  <PropertyGroup>
+    <AppPluginsDir>$(MSBuildProjectDirectory)\..\..\src\Daedalus.App\bin\$(Configuration)\$(TargetFramework)\plugins\</AppPluginsDir>
+  </PropertyGroup>
+  <Target Name="DeployPlugin" AfterTargets="Build">
+    <ItemGroup>
+      <PluginArtifacts Include="$(TargetPath)" />
+      <PluginArtifacts Include="$(TargetDir)$(TargetName).pdb" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PluginArtifacts)" DestinationFolder="$(AppPluginsDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

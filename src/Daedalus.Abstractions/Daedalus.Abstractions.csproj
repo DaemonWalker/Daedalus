@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 契约程序集：ITool / IFormatter / IToolHost（架构 §4）。
+       契约含 System.Windows.Forms.Control，故需 UseWindowsForms；
+       唯一第三方依赖为 Serilog（架构 §6.3）。 -->
+  <PropertyGroup>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog" />
+  </ItemGroup>
+
+</Project>

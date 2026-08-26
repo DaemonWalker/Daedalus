@@ -1,0 +1,25 @@
+<Project>
+
+  <!-- 中央包管理（规范 §1）：第三方包版本全部在此维护，项目文件不写版本号。
+       主程序与插件对共享库必须使用这里的同一版本（架构 §5.2）。 -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 日志（架构 §6.2/§6.3） -->
+    <PackageVersion Include="Serilog" Version="4.3.0" />
+    <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
+    <!-- Hermes 后事件脚本引擎 -->
+    <PackageVersion Include="Jint" Version="4.4.0" />
+    <!-- Proteus 高亮编辑器（插件私有依赖）：nuget.org 上的 FastColoredTextBox(1.0.0)/FCTB(2.16.24)
+         均停留在 .NET Framework 时代，选用 .NET 10 fork -->
+    <PackageVersion Include="FastColoredTextBox.NET10" Version="2.16.26.9180" />
+    <!-- 测试 -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" PrivateAssets="all" />
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

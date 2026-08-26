@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- WinForms 主程序（exe）：极薄外壳，窗口 + 插件加载 + 宿主服务（架构 §6）。 -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Daedalus.Abstractions\Daedalus.Abstractions.csproj" />
+    <ProjectReference Include="..\Daedalus.Hosting\Daedalus.Hosting.csproj" />
+  </ItemGroup>
+
+</Project>

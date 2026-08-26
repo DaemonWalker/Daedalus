@@ -1,0 +1,31 @@
+# 文档与 agent 指令（本地参考，不纳入版本管理）
+docs/
+AGENTS.md
+
+# .NET 构建产物
+bin/
+obj/
+out/
+*.nupkg
+*.snupkg
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# 测试
+TestResults/
+coverage*.xml
+coverage*.json
+
+# 运行时生成（数据/日志/下载的插件）
+**/data/
+**/logs/
+
+# 系统文件
+Thumbs.db
+Desktop.ini
