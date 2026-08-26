@@ -16,6 +16,9 @@
     <!-- 桩插件工程：仅引用以把桩 dll 带入测试输出目录，测试中再拷贝到临时 plugins/ 目录加载 -->
     <ProjectReference Include="..\Daedalus.Hosting.Tests.Stubs\Daedalus.Hosting.Tests.Stubs.csproj" />
     <ProjectReference Include="..\Daedalus.Hosting.Tests.ThrowingStubs\Daedalus.Hosting.Tests.ThrowingStubs.csproj" />
+    <!-- 第一方格式化器插件：仅引用以把 dll 带入测试输出目录，供插件枚举集成验证（第 4 步完成标准） -->
+    <ProjectReference Include="..\..\plugins\Daedalus.Tools.Proteus\Daedalus.Formatters.Json\Daedalus.Formatters.Json.csproj" />
+    <ProjectReference Include="..\..\plugins\Daedalus.Tools.Proteus\Daedalus.Formatters.Xml\Daedalus.Formatters.Xml.csproj" />
   </ItemGroup>
 
   <ItemGroup>
