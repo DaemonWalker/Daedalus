@@ -4,6 +4,7 @@ using System.Windows.Forms;
 using Daedalus.Tools.Hermes.History;
 using Daedalus.Tools.Hermes.Http;
 using Daedalus.Tools.Hermes.Response;
+using Daedalus.Tools.Hermes.Scripting;
 
 using FastColoredTextBoxNS;
 
@@ -33,8 +34,11 @@ internal sealed class ResponsePanel : UserControl
         _emptyLabel.BringToFront();
     }
 
-    /// <summary>渲染一次发送的跳转链；美化按每跳的 Content-Type 独立生效。</summary>
-    public void ShowResult(SendResult result, ResponseBeautifier beautifier)
+    /// <summary>
+    /// 渲染一次发送的跳转链；美化按每跳的 Content-Type 独立生效。
+    /// <paramref name="scriptResult"/> 非 null 时在最终一跳附加"脚本输出"页（脚本只针对最终一跳执行，FR-HERMES-045）。
+    /// </summary>
+    public void ShowResult(SendResult result, ResponseBeautifier beautifier, ScriptExecutionResult? scriptResult = null)
     {
         ArgumentNullException.ThrowIfNull(result);
         ArgumentNullException.ThrowIfNull(beautifier);
@@ -42,7 +46,7 @@ internal sealed class ResponsePanel : UserControl
         ClearTabs();
         foreach (ResponseHop hop in result.Hops)
         {
-            TabPage page = BuildHopTab(hop, beautifier);
+            TabPage page = BuildHopTab(hop, beautifier, hop.Index == result.Hops.Count ? scriptResult : null);
             _hopTabs.TabPages.Add(page);
         }
 
@@ -78,7 +82,7 @@ internal sealed class ResponsePanel : UserControl
         _hopTabs.TabPages.Clear();
     }
 
-    private static TabPage BuildHopTab(ResponseHop hop, ResponseBeautifier beautifier)
+    private static TabPage BuildHopTab(ResponseHop hop, ResponseBeautifier beautifier, ScriptExecutionResult? scriptResult)
     {
         HopResponse response = hop.Response;
         string title = $"{hop.Index}: {response.Status} {response.ReasonPhrase}".TrimEnd();
@@ -120,6 +124,19 @@ internal sealed class ResponsePanel : UserControl
         headersPage.Controls.Add(headersGrid);
         innerTabs.TabPages.Add(bodyPage);
         innerTabs.TabPages.Add(headersPage);
+
+        // 后事件脚本的输出/错误页（FR-HERMES-043）：仅最终一跳可携带
+        if (scriptResult is not null)
+        {
+            var scriptPage = new TabPage("脚本输出");
+            string text = scriptResult.Error is not null
+                ? $"脚本执行出错：\n\n{scriptResult.Error}"
+                : scriptResult.MutationLog.Count > 0
+                    ? "脚本执行完成，环境变量变更：\n\n" + string.Join('\n', scriptResult.MutationLog)
+                    : "脚本执行完成，无输出。";
+            scriptPage.Controls.Add(new FastColoredTextBox { Dock = DockStyle.Fill, ReadOnly = true, Text = text });
+            innerTabs.TabPages.Add(scriptPage);
+        }
 
         page.Controls.Add(innerTabs);
         page.Controls.Add(info);

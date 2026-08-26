@@ -19,4 +19,11 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- 样本文件驱动的测试（规范 §9）：TestData/ 以内容形式拷贝到输出目录 -->
+  <ItemGroup>
+    <Content Include="TestData\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

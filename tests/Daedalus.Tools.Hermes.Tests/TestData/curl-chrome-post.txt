@@ -1,0 +1,8 @@
+curl "http://localhost:8080/api/login" \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -u admin:secret \
+  --data-raw '{"user":"a","pwd":"b"}' \
+  --compressed \
+  -k \
+  --http2

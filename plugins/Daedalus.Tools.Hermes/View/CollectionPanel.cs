@@ -89,6 +89,13 @@ internal sealed class CollectionPanel : UserControl
         SetCollections(remaining);
     }
 
+    /// <summary>追加集合（导入，hermes.md §9.1）并刷新。</summary>
+    public void AddCollection(HermesCollection collection)
+    {
+        ArgumentNullException.ThrowIfNull(collection);
+        SetCollections([.. Collections, collection]);
+    }
+
     private static void BuildChildren(TreeNode parent, List<CollectionNode> items)
     {
         foreach (CollectionNode node in items)

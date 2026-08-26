@@ -2,6 +2,10 @@
 
 版本号格式：`大版本.小版本.bug修复`。最新版本在最上方。
 
+## 0.10.0（2026-08-27）
+
+- 第 9 步「Hermes 导入与脚本」完成：PostmanImporter（结构嗅探 Collection v2.1 / Environment v1、嵌套文件夹/请求头/体/后事件脚本映射、form-data·graphql·auth·prerequest 等待忽略项汇总、v2.0 等版本明确拒绝、名称冲突追加序号，FR-HERMES-030~033）；CurlImporter（bash 分词——单双引号/转义/续行，-X·--url·-H·--data 系列·-b·-u 转 Basic·-A·-k 映射，未知参数汇总，导入到编辑区不入集合，FR-HERMES-034）；ScriptHost + PostmanApi（Jint 沙箱——每次新建 Engine、内存/超时取自设置、不开 AllowClr 只注入 pm，pm.environment.get/set/unset 与 pm.response.code/text/json/headers.get 子集，sendRequest/test/globals 抛"未实现"，异常隔离进结果不中断流程 FR-HERMES-043；脚本写操作结束后统一经 EnvironmentStore 立即持久化并刷新界面 FR-HERMES-044，只针对最终一跳执行 FR-HERMES-045）；界面接线：导入下拉菜单（Postman 文件 / cURL 粘贴）、响应区最终一跳"脚本输出"页；Jint 随插件部署到 plugins/；Hermes.Tests 新增 33 例共 152 项（样本文件驱动 TestData/ 5 个）；回环端到端冒烟 9 项全过（pm.environment.set → environments.json 落盘 + 面板环境数据源刷新 + 脚本输出页、Postman 样本导入落盘 + 集合树新增 + 脚本载入编辑区）；全部测试 221 项全绿
+
 ## 0.9.0（2026-08-27）
 
 - 第 8 步「Hermes 界面」完成：Hermes 手工可用（除导入与脚本外）。Abstractions 新增可选契约 IToolCloseConfirmation，主窗口关标签页/关窗均咨询（FR-HERMES-012）；主面板 HermesPanel + 集合树 CollectionPanel（CRUD 右键菜单、拖拽移动）+ 请求编辑区 RequestEditorPanel（方法可编辑下拉、Params/Headers/Body[raw+urlencoded]/选项/后事件脚本五页、Ctrl+Enter 发送、脏标记）+ 响应区 ResponsePanel（跳转链每跳 tab、Content-Type 美化联动 FindFormatter）+ 历史列表 HistoryPanel（最近 7 天、过滤、重放）+ 环境切换下拉/管理窗口（变量密文列掩码）+ 设置面板（修改即保存，FR-HERMES-060/061）+ {{var}} 悬浮编辑（500ms 悬浮、就地改值立即持久化、secret 掩码切换、未定义就地创建，FR-HERMES-024）；非 UI 逻辑独立可测——SendOrchestrator（变量替换→引擎→历史组装）、RequestDraft（快照映射与脏比较）、QueryParamMapper（URL query ↔ Params 表）、ContentTypeFormatMapper/ResponseBeautifier、VariableReferenceFinder、RecentHistoryReader；Hermes.Tests 新增 44 例共 119 项；回环 TcpListener 端到端冒烟 15 项全过（建集合/配环境/发送美化/历史落盘/跳转链/Cookie 开关/设置持久化/悬浮弹窗），PluginLoader ALC CreateView 冒烟与 App 进程冒烟通过；全部测试 188 项全绿

@@ -6,6 +6,7 @@ using Daedalus.Tools.Hermes.Editing;
 using Daedalus.Tools.Hermes.History;
 using Daedalus.Tools.Hermes.Http;
 using Daedalus.Tools.Hermes.Response;
+using Daedalus.Tools.Hermes.Scripting;
 using Daedalus.Tools.Hermes.Settings;
 using Daedalus.Tools.Hermes.Variables;
 
@@ -31,6 +32,9 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
     private readonly RecentHistoryReader _historyReader;
     private readonly ResponseBeautifier _beautifier;
     private readonly VariableHoverController _hover;
+    private readonly ScriptHost _scriptHost;
+    private readonly PostmanImporter _postmanImporter = new();
+    private readonly CurlImporter _curlImporter = new();
 
     private readonly ComboBox _envCombo;
     private readonly CollectionPanel _collectionPanel;
@@ -65,14 +69,21 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         _historyReader = new RecentHistoryReader(_historyStore);
         _beautifier = new ResponseBeautifier(host);
         _hover = new VariableHoverController(() => _environmentData.FindActive(), SetVariableFromHoverAsync);
+        _scriptHost = new ScriptHost(_environmentStore, _logger);
 
         _envCombo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
         var manageEnvButton = new Button { Text = "管理环境", AutoSize = true };
+        var importButton = new Button { Text = "导入 ▾", AutoSize = true };
+        var importMenu = new ContextMenuStrip();
+        importMenu.Items.Add("从 Postman 文件导入…", null, async (_, _) => await ImportPostmanAsync());
+        importMenu.Items.Add("从 cURL 命令导入…", null, (_, _) => ImportCurl());
+        importButton.Click += (_, _) => importMenu.Show(importButton, new Point(0, importButton.Height));
         var settingsButton = new Button { Text = "设置", AutoSize = true };
         var topBar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(4) };
         topBar.Controls.Add(new Label { Text = "环境:", AutoSize = true, Padding = new Padding(0, 6, 0, 0) });
         topBar.Controls.Add(_envCombo);
         topBar.Controls.Add(manageEnvButton);
+        topBar.Controls.Add(importButton);
         topBar.Controls.Add(settingsButton);
 
         _collectionPanel = new CollectionPanel { Dock = DockStyle.Fill };
@@ -413,9 +424,28 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         try
         {
             SendResult result = await _tool.Orchestrator.SendAsync(prepared, _settings, _sendCts.Token);
-            _responsePanel.ShowResult(result, _beautifier);
+
+            // 后事件脚本（FR-HERMES-040/045）：只针对最终一跳执行一次；异常隔离进"脚本输出"页（FR-HERMES-043）
+            ScriptExecutionResult? scriptResult = null;
+            if (draft.PostResponseScript is not null)
+            {
+                scriptResult = await _scriptHost.RunAsync(
+                    draft.PostResponseScript, result.FinalHop.Response, _environmentData, _settings, _sendCts.Token);
+                if (scriptResult.UpdatedEnvironmentData is not null)
+                {
+                    // pm.environment.set/unset 已落盘（FR-HERMES-044），刷新环境下拉与悬浮编辑的数据源
+                    _environmentData = scriptResult.UpdatedEnvironmentData;
+                    RefreshEnvironmentCombo();
+                }
+            }
+
+            _responsePanel.ShowResult(result, _beautifier, scriptResult);
 
             string status = $"状态 {result.FinalHop.Response.Status}，耗时 {result.FinalHop.Response.ElapsedMs} ms";
+            if (scriptResult?.Error is not null)
+            {
+                status += "；后事件脚本执行出错（详见响应区“脚本输出”页）";
+            }
             if (result.RedirectLimitExceeded)
             {
                 status += "；超过跳转上限（10 跳），已停止跟随";
@@ -447,6 +477,104 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
             _editor.SetSending(false);
             _sendCts.Dispose();
             _sendCts = null;
+        }
+    }
+
+    // ---------- 导入（hermes.md §9） ----------
+
+    private async Task ImportPostmanAsync()
+    {
+        using var dialog = new OpenFileDialog
+        {
+            Filter = "Postman 导出文件 (*.json)|*.json|所有文件 (*.*)|*.*",
+            Title = "导入 Postman Collection / Environment",
+        };
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            string json = await File.ReadAllTextAsync(dialog.FileName);
+            PostmanImportResult result = _postmanImporter.Import(
+                json,
+                [.. _collectionPanel.Collections.Select(c => c.Name)],
+                [.. _environmentData.Environments.Select(e => e.Name)]);
+
+            if (result.Collection is { } collection)
+            {
+                // 作为新集合追加，不覆盖已有数据（§9.1）
+                await _collectionStore.SaveAsync(collection);
+                _collectionPanel.AddCollection(collection);
+                _statusLabel.Text = $"已导入集合「{collection.Name}」";
+            }
+            else if (result.Environment is { } environment)
+            {
+                _environmentData.Environments.Add(environment);
+                await _environmentStore.SaveAsync(_environmentData);
+                RefreshEnvironmentCombo();
+                _statusLabel.Text = $"已导入环境「{environment.Name}」";
+            }
+
+            if (result.IgnoredItems.Count > 0)
+            {
+                MessageBox.Show(this, "导入完成，以下内容未导入：\n\n" + string.Join('\n', result.IgnoredItems),
+                    "导入结果", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+        catch (PostmanImportException ex)
+        {
+            MessageBox.Show(this, ex.Message, "导入失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Postman 导入失败");
+            _statusLabel.Text = $"导入失败：{ex.Message}";
+        }
+    }
+
+    private void ImportCurl()
+    {
+        using var form = new CurlImportForm();
+        if (form.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        CurlImportResult result;
+        try
+        {
+            result = _curlImporter.Import(form.CommandText);
+        }
+        catch (FormatException ex)
+        {
+            MessageBox.Show(this, ex.Message, "cURL 导入失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+
+        if (!ConfirmDiscardOrSave())
+        {
+            return;
+        }
+
+        // 加载到当前编辑区，不自动入集合（FR-HERMES-034）
+        _editingRequest = null;
+        _editor.LoadDraft(result.Draft);
+        _editor.MarkSaved();
+        _editor.SaveEnabled = false;
+        _statusLabel.Text = "已从 cURL 导入到编辑区（未入集合，需保存请先在集合树中选中请求）";
+
+        var notes = new List<string>(result.IgnoredArguments);
+        if (result.HasInsecureFlag)
+        {
+            notes.Add("-k/--insecure：未映射为请求属性；如需忽略证书校验，请在“设置”中开启全局开关");
+        }
+
+        if (notes.Count > 0)
+        {
+            MessageBox.Show(this, "导入完成，以下参数被忽略：\n\n" + string.Join('\n', notes),
+                "cURL 导入结果", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
     }
 
