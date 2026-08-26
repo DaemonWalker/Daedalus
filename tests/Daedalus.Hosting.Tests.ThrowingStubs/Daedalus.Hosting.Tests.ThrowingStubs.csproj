@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Hosting 测试桩插件（异常）：插件类型实例化即抛异常，验证加载失败隔离。
+       仅为测试产物，不部署到 App 输出目录。 -->
+  <PropertyGroup>
+    <UseWindowsForms>true</UseWindowsForms>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Daedalus.Abstractions\Daedalus.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

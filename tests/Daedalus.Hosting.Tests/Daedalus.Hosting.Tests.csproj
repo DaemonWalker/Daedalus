@@ -13,6 +13,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Daedalus.Hosting\Daedalus.Hosting.csproj" />
+    <!-- 桩插件工程：仅引用以把桩 dll 带入测试输出目录，测试中再拷贝到临时 plugins/ 目录加载 -->
+    <ProjectReference Include="..\Daedalus.Hosting.Tests.Stubs\Daedalus.Hosting.Tests.Stubs.csproj" />
+    <ProjectReference Include="..\Daedalus.Hosting.Tests.ThrowingStubs\Daedalus.Hosting.Tests.ThrowingStubs.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -34,6 +34,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daedalus.Formatters.Json.Tests", "tests\Daedalus.Formatters.Json.Tests\Daedalus.Formatters.Json.Tests.csproj", "{25F67661-279F-41FA-8AC4-3FB6CAA85DFF}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daedalus.Formatters.Xml.Tests", "tests\Daedalus.Formatters.Xml.Tests\Daedalus.Formatters.Xml.Tests.csproj", "{698FEABA-BE5C-4CFE-AC88-C9BE3DA59718}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daedalus.Hosting.Tests.Stubs", "tests\Daedalus.Hosting.Tests.Stubs\Daedalus.Hosting.Tests.Stubs.csproj", "{4BFDC2E9-52A1-4695-927E-8C6F8D86C91D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daedalus.Hosting.Tests.ThrowingStubs", "tests\Daedalus.Hosting.Tests.ThrowingStubs\Daedalus.Hosting.Tests.ThrowingStubs.csproj", "{7B6A1392-E244-4621-B70E-373CEC509B66}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -189,6 +193,30 @@ Global
 		{698FEABA-BE5C-4CFE-AC88-C9BE3DA59718}.Release|x64.Build.0 = Release|Any CPU
 		{698FEABA-BE5C-4CFE-AC88-C9BE3DA59718}.Release|x86.ActiveCfg = Release|Any CPU
 		{698FEABA-BE5C-4CFE-AC88-C9BE3DA59718}.Release|x86.Build.0 = Release|Any CPU
+		{4BFDC2E9-52A1-4695-927E-8C6F8D86C91D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4BFDC2E9-52A1-4695-927E-8C6F8D86C91D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4BFDC2E9-52A1-4695-927E-8C6F8D86C91D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{4BFDC2E9-52A1-4695-927E-8C6F8D86C91D}.Debug|x64.Build.0 = Debug|Any CPU
+		{4BFDC2E9-52A1-4695-927E-8C6F8D86C91D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{4BFDC2E9-52A1-4695-927E-8C6F8D86C91D}.Debug|x86.Build.0 = Debug|Any CPU
+		{4BFDC2E9-52A1-4695-927E-8C6F8D86C91D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4BFDC2E9-52A1-4695-927E-8C6F8D86C91D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4BFDC2E9-52A1-4695-927E-8C6F8D86C91D}.Release|x64.ActiveCfg = Release|Any CPU
+		{4BFDC2E9-52A1-4695-927E-8C6F8D86C91D}.Release|x64.Build.0 = Release|Any CPU
+		{4BFDC2E9-52A1-4695-927E-8C6F8D86C91D}.Release|x86.ActiveCfg = Release|Any CPU
+		{4BFDC2E9-52A1-4695-927E-8C6F8D86C91D}.Release|x86.Build.0 = Release|Any CPU
+		{7B6A1392-E244-4621-B70E-373CEC509B66}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7B6A1392-E244-4621-B70E-373CEC509B66}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7B6A1392-E244-4621-B70E-373CEC509B66}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{7B6A1392-E244-4621-B70E-373CEC509B66}.Debug|x64.Build.0 = Debug|Any CPU
+		{7B6A1392-E244-4621-B70E-373CEC509B66}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{7B6A1392-E244-4621-B70E-373CEC509B66}.Debug|x86.Build.0 = Debug|Any CPU
+		{7B6A1392-E244-4621-B70E-373CEC509B66}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7B6A1392-E244-4621-B70E-373CEC509B66}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7B6A1392-E244-4621-B70E-373CEC509B66}.Release|x64.ActiveCfg = Release|Any CPU
+		{7B6A1392-E244-4621-B70E-373CEC509B66}.Release|x64.Build.0 = Release|Any CPU
+		{7B6A1392-E244-4621-B70E-373CEC509B66}.Release|x86.ActiveCfg = Release|Any CPU
+		{7B6A1392-E244-4621-B70E-373CEC509B66}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -207,5 +235,7 @@ Global
 		{FA5CBAAF-8345-4FAC-B06E-CB5FC0A1EA39} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{25F67661-279F-41FA-8AC4-3FB6CAA85DFF} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{698FEABA-BE5C-4CFE-AC88-C9BE3DA59718} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{4BFDC2E9-52A1-4695-927E-8C6F8D86C91D} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{7B6A1392-E244-4621-B70E-373CEC509B66} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
