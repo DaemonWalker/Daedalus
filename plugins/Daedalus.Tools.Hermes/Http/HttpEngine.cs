@@ -141,7 +141,32 @@ public sealed class HttpEngine(HttpClientFactory clientFactory)
 
     private static HttpContent? BuildContent(RequestBody? body, out string? bodyText)
     {
-        bodyText = null;
+        bodyText = GetBodyText(body);
+        if (body is null)
+        {
+            return null;
+        }
+
+        // body 非 null 时 GetBodyText 保证非 null（raw 空文本返回 string.Empty）
+        if (body.Kind == RequestBodyKind.UrlEncoded)
+        {
+            return new StringContent(bodyText!, Encoding.UTF8, "application/x-www-form-urlencoded");
+        }
+
+        // Raw：未指定 Content-Type 时保留 StringContent 默认的 text/plain; charset=utf-8
+        var content = new StringContent(bodyText ?? string.Empty, Encoding.UTF8);
+        if (!string.IsNullOrWhiteSpace(body.ContentType)
+            && MediaTypeHeaderValue.TryParse(body.ContentType, out MediaTypeHeaderValue? mediaType))
+        {
+            content.Headers.ContentType = mediaType;
+        }
+
+        return content;
+    }
+
+    // 请求体序列化为文本的口径与发送一致，供历史记录组装（SendOrchestrator）复用
+    internal static string? GetBodyText(RequestBody? body)
+    {
         if (body is null)
         {
             return null;
@@ -150,20 +175,10 @@ public sealed class HttpEngine(HttpClientFactory clientFactory)
         if (body.Kind == RequestBodyKind.UrlEncoded)
         {
             IEnumerable<KeyValueEntry> fields = (body.Fields ?? []).Where(f => f.Enabled);
-            bodyText = string.Join("&", fields.Select(f => $"{Uri.EscapeDataString(f.Key)}={Uri.EscapeDataString(f.Value)}"));
-            return new StringContent(bodyText, Encoding.UTF8, "application/x-www-form-urlencoded");
+            return string.Join("&", fields.Select(f => $"{Uri.EscapeDataString(f.Key)}={Uri.EscapeDataString(f.Value)}"));
         }
 
-        // Raw：未指定 Content-Type 时保留 StringContent 默认的 text/plain; charset=utf-8
-        bodyText = body.Text ?? string.Empty;
-        var content = new StringContent(bodyText, Encoding.UTF8);
-        if (!string.IsNullOrWhiteSpace(body.ContentType)
-            && MediaTypeHeaderValue.TryParse(body.ContentType, out MediaTypeHeaderValue? mediaType))
-        {
-            content.Headers.ContentType = mediaType;
-        }
-
-        return content;
+        return body.Text ?? string.Empty;
     }
 
     private static HopRequest SnapshotRequest(string method, string url, HttpRequestMessage message, string? bodyText)

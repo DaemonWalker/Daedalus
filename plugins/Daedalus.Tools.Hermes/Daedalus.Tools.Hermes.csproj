@@ -9,19 +9,29 @@
     <ProjectReference Include="..\..\src\Daedalus.Abstractions\Daedalus.Abstractions.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 插件私有依赖（hermes.md §2）：请求体/响应体/脚本编辑区语法高亮 -->
+    <PackageReference Include="FastColoredTextBox.NET10" />
+  </ItemGroup>
+
   <!-- 引擎测试需注入 HttpMessageHandler 桩（HttpClientFactory 的 internal 构造） -->
   <ItemGroup>
     <InternalsVisibleTo Include="Daedalus.Tools.Hermes.Tests" />
   </ItemGroup>
 
-  <!-- 生成后事件（架构 §5.3）：产物拷贝到 App 输出目录 plugins/，保证 F5 调试即可用 -->
+  <!-- 生成后事件（架构 §5.3）：产物拷贝到 App 输出目录 plugins/，保证 F5 调试即可用。
+       私有依赖部署同 step5 Proteus：CopyLocalLockFileAssemblies 让 FastColoredTextBox 进入输出目录，
+       部署目标按文件名补拷（与 Proteus 部署的是同一文件同名同版本，平铺目录无冲突）。 -->
   <PropertyGroup>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <AppPluginsDir>$(MSBuildProjectDirectory)\..\..\src\Daedalus.App\bin\$(Configuration)\$(TargetFramework)\plugins\</AppPluginsDir>
   </PropertyGroup>
   <Target Name="DeployPlugin" AfterTargets="Build">
     <ItemGroup>
       <PluginArtifacts Include="$(TargetPath)" />
       <PluginArtifacts Include="$(TargetDir)$(TargetName).pdb" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+      <PluginArtifacts Include="$(TargetDir)FastColoredTextBox.dll" Condition="Exists('$(TargetDir)FastColoredTextBox.dll')" />
+      <PluginArtifacts Include="$(TargetDir)FastColoredTextBox.pdb" Condition="Exists('$(TargetDir)FastColoredTextBox.pdb')" />
     </ItemGroup>
     <Copy SourceFiles="@(PluginArtifacts)" DestinationFolder="$(AppPluginsDir)" SkipUnchangedFiles="true" />
   </Target>

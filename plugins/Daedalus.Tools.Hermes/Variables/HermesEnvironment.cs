@@ -9,6 +9,6 @@ public sealed record HermesEnvironment
     /// <summary>环境显示名。</summary>
     public required string Name { get; init; }
 
-    /// <summary>变量清单。</summary>
-    public List<EnvironmentVariable> Variables { get; init; } = [];
+    /// <summary>变量清单。setter 供环境管理窗口整表替换（step8），持久化序列化不受影响。</summary>
+    public List<EnvironmentVariable> Variables { get; set; } = [];
 }

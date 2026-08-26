@@ -43,6 +43,7 @@ internal sealed class MainForm : Form
         };
         _tabs.DrawItem += OnTabDrawItem;
         _tabs.MouseClick += OnTabMouseClick;
+        FormClosing += OnMainFormClosing;
 
         var toolList = new ListBox { Dock = DockStyle.Fill, IntegralHeight = false };
         foreach (ITool tool in _catalog.Tools)
@@ -183,10 +184,34 @@ internal sealed class MainForm : Form
     private void CloseTab(int index)
     {
         TabPage page = _tabs.TabPages[index];
+        if (!ViewConfirmsClose(page))
+        {
+            return;
+        }
+
         _tabs.TabPages.RemoveAt(index);
         _closeButtonBounds.Clear();
         page.Dispose();
     }
+
+    // 关闭主窗口时逐一咨询各标签页视图（如 Hermes 的未保存提示），任一拒绝则取消关闭
+    private void OnMainFormClosing(object? sender, FormClosingEventArgs e)
+    {
+        foreach (TabPage page in _tabs.TabPages)
+        {
+            if (!ViewConfirmsClose(page))
+            {
+                e.Cancel = true;
+                return;
+            }
+        }
+    }
+
+    // 视图实现可选契约 IToolCloseConfirmation 时先咨询；未实现视为允许关闭
+    private static bool ViewConfirmsClose(TabPage page) =>
+        page.Controls.Count == 0
+        || page.Controls[0] is not IToolCloseConfirmation confirmation
+        || confirmation.ConfirmClose();
 
     /// <summary>工具列表项：ListBox 按 <see cref="ToString"/> 显示工具名。</summary>
     private sealed record ToolListItem(ITool Tool)

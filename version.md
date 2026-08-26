@@ -2,6 +2,10 @@
 
 版本号格式：`大版本.小版本.bug修复`。最新版本在最上方。
 
+## 0.9.0（2026-08-27）
+
+- 第 8 步「Hermes 界面」完成：Hermes 手工可用（除导入与脚本外）。Abstractions 新增可选契约 IToolCloseConfirmation，主窗口关标签页/关窗均咨询（FR-HERMES-012）；主面板 HermesPanel + 集合树 CollectionPanel（CRUD 右键菜单、拖拽移动）+ 请求编辑区 RequestEditorPanel（方法可编辑下拉、Params/Headers/Body[raw+urlencoded]/选项/后事件脚本五页、Ctrl+Enter 发送、脏标记）+ 响应区 ResponsePanel（跳转链每跳 tab、Content-Type 美化联动 FindFormatter）+ 历史列表 HistoryPanel（最近 7 天、过滤、重放）+ 环境切换下拉/管理窗口（变量密文列掩码）+ 设置面板（修改即保存，FR-HERMES-060/061）+ {{var}} 悬浮编辑（500ms 悬浮、就地改值立即持久化、secret 掩码切换、未定义就地创建，FR-HERMES-024）；非 UI 逻辑独立可测——SendOrchestrator（变量替换→引擎→历史组装）、RequestDraft（快照映射与脏比较）、QueryParamMapper（URL query ↔ Params 表）、ContentTypeFormatMapper/ResponseBeautifier、VariableReferenceFinder、RecentHistoryReader；Hermes.Tests 新增 44 例共 119 项；回环 TcpListener 端到端冒烟 15 项全过（建集合/配环境/发送美化/历史落盘/跳转链/Cookie 开关/设置持久化/悬浮弹窗），PluginLoader ALC CreateView 冒烟与 App 进程冒烟通过；全部测试 188 项全绿
+
 ## 0.8.0（2026-08-27）
 
 - 第 7 步「Hermes HTTP 引擎」完成：HttpClientFactory（带/不带共享 CookieContainer 双 client 缓存、AllowAutoRedirect 恒 false、"忽略证书校验"开关变化销毁重建、internal 构造注入 handler 供测试，hermes.md §5.2）；HttpEngine（异步发送、取消、逐跳 Stopwatch 计时、重定向手动跟随——303 一律 GET 丢体 / 301·302 对 POST 按浏览器惯例改 GET / 307·308 保方法体重发、相对 Location 相对上一跳解析、Ordinal 精确 URL 环检测、10 跳上限标记，§5.3）；跳转链模型 SendRequest / ResponseHop(HopRequest+HopResponse) / SendResult（超限与环检测标记）；Hermes.Tests 新增 26 例——StubHandler 桩覆盖全部重定向行为与选项生效逻辑（全局/请求级覆盖双向）、回环 TcpListener 迷你 HTTP 服务器验证 Cookie 跨跳共享（避开 HttpListener 的 URL ACL 限制）；顺带修复 step6 的 IdGenerator 时间戳排序测试边界错误（第 10 字符含随机段，改为比较前 9 字符）；全部测试 144 项全绿

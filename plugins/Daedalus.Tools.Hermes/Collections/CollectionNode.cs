@@ -12,8 +12,8 @@ public sealed record CollectionNode
     /// <summary>显示名。</summary>
     public required string Name { get; init; }
 
-    /// <summary>子节点（仅 Folder）。</summary>
-    public List<CollectionNode>? Items { get; init; }
+    /// <summary>子节点（仅 Folder）。setter 供界面原地编辑（step8），持久化序列化不受影响。</summary>
+    public List<CollectionNode>? Items { get; set; }
 
     /// <summary>HTTP 方法（仅 Request），允许自定义方法名（FR-HERMES-001）。</summary>
     public string? Method { get; init; }
