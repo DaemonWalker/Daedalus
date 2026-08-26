@@ -9,6 +9,11 @@
     <ProjectReference Include="..\..\src\Daedalus.Abstractions\Daedalus.Abstractions.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 插件私有依赖（proteus.md §2）：语法高亮编辑区 -->
+    <PackageReference Include="FastColoredTextBox.NET10" />
+  </ItemGroup>
+
   <!-- 格式化器是嵌套在本目录下的独立工程（架构 §2），默认通配会把它们的源码与 obj 生成文件
        算进本工程，需排除 -->
   <ItemGroup>
@@ -20,14 +25,19 @@
     <EmbeddedResource Remove="Daedalus.Formatters.Xml/**" />
   </ItemGroup>
 
-  <!-- 生成后事件（架构 §5.3）：产物拷贝到 App 输出目录 plugins/ -->
+  <!-- 生成后事件（架构 §5.3）：产物拷贝到 App 输出目录 plugins/。
+       CopyLocalLockFileAssemblies 让私有依赖（FastColoredTextBox）进入本工程输出目录，
+       部署目标再按文件名挑选随插件 dll 一并拷入（Serilog 与 Abstractions 属宿主共享程序集，不部署）。 -->
   <PropertyGroup>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <AppPluginsDir>$(MSBuildProjectDirectory)\..\..\src\Daedalus.App\bin\$(Configuration)\$(TargetFramework)\plugins\</AppPluginsDir>
   </PropertyGroup>
   <Target Name="DeployPlugin" AfterTargets="Build">
     <ItemGroup>
       <PluginArtifacts Include="$(TargetPath)" />
       <PluginArtifacts Include="$(TargetDir)$(TargetName).pdb" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+      <PluginArtifacts Include="$(TargetDir)FastColoredTextBox.dll" Condition="Exists('$(TargetDir)FastColoredTextBox.dll')" />
+      <PluginArtifacts Include="$(TargetDir)FastColoredTextBox.pdb" Condition="Exists('$(TargetDir)FastColoredTextBox.pdb')" />
     </ItemGroup>
     <Copy SourceFiles="@(PluginArtifacts)" DestinationFolder="$(AppPluginsDir)" SkipUnchangedFiles="true" />
   </Target>

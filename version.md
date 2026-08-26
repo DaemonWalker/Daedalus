@@ -2,6 +2,10 @@
 
 版本号格式：`大版本.小版本.bug修复`。最新版本在最上方。
 
+## 0.6.0（2026-08-27）
+
+- 第 5 步「Proteus 工具」完成：格式化工具端到端可用，验证 ITool + IFormatter 两级插件联动。ProteusTool + ProteusPanel（输入/输出分栏、格式与缩进下拉、格式化/压缩/校验/清空/复制、状态栏错误行列、FastColoredTextBox 高亮：json 自定义规则 / xml 内置规则）；非 UI 逻辑独立可测——ProteusOperations（操作编排、FormatException 按校验失败处理、初始格式解析）与 ProteusSettingsStore（settings.json 读写、DR-003 损坏备份恢复）；插件私有依赖 FastColoredTextBox 随部署目标拷入 plugins/；Proteus.Tests 21 用例替换占位冒烟；App 进程冒烟 + 反射驱动端到端冒烟（格式化/校验/重启恢复格式与缩进）替代手工验收；全部测试 70 项全绿
+
 ## 0.5.0（2026-08-27）
 
 - 第 4 步「JSON / XML 格式化器」完成：实现两个第一方 IFormatter 插件——JsonFormatter（System.Text.Json，严格 JSON，Utf8JsonWriter 输出、缩进可配、深度上限放宽，错误含 1 起始字符行列）与 XmlFormatter（XDocument + XmlReader，禁 DTD/外部实体防 XXE，声明头按原文保留，缩进可配）；两个测试工程各 16/17 用例覆盖设计文档全部测试要点；Hosting.Tests 新增第一方格式化器插件枚举集成验证（PluginLoader 扫描入表），真实 App 启动日志确认 2 个格式化器入表；全部测试 50 项全绿
