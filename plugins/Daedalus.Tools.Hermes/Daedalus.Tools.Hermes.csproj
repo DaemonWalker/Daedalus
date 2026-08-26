@@ -36,6 +36,9 @@
       <PluginArtifacts Include="$(TargetDir)FastColoredTextBox.pdb" Condition="Exists('$(TargetDir)FastColoredTextBox.pdb')" />
       <PluginArtifacts Include="$(TargetDir)Jint.dll" Condition="Exists('$(TargetDir)Jint.dll')" />
       <PluginArtifacts Include="$(TargetDir)Jint.pdb" Condition="Exists('$(TargetDir)Jint.pdb')" />
+      <!-- Jint 的运行时依赖（4.4 起拆分为独立包）：缺它脚本引擎在部署目录无法加载 -->
+      <PluginArtifacts Include="$(TargetDir)Acornima.dll" Condition="Exists('$(TargetDir)Acornima.dll')" />
+      <PluginArtifacts Include="$(TargetDir)Acornima.pdb" Condition="Exists('$(TargetDir)Acornima.pdb')" />
     </ItemGroup>
     <Copy SourceFiles="@(PluginArtifacts)" DestinationFolder="$(AppPluginsDir)" SkipUnchangedFiles="true" />
   </Target>
