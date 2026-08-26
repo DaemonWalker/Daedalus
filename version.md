@@ -2,6 +2,10 @@
 
 版本号格式：`大版本.小版本.bug修复`。最新版本在最上方。
 
+## 0.7.0（2026-08-27）
+
+- 第 6 步「Hermes 数据层」完成：内部模型（集合树 CollectionNode 单类 Folder/Request、请求体 raw/urlEncoded、options 请求级覆盖、环境/历史/设置模型，均带 version 字段）按 hermes.md §11 实现；四个 Store——CollectionStore（collections/<id>.json 读写删、逐文件 DR-003 备份恢复）、EnvironmentStore（environments.json 读写 + Set/Unset 变量立即持久化）、HistoryStore（按天 jsonl 追加、信号量保护、响应体 UTF-8 字节上限截断并置 bodyTruncated、按天读取行级容错）、HermesSettingsStore（settings.json 默认值与损坏恢复）；DR-003 公共读写助手 Persistence/JsonDataFile；VariableResolver（{{var}} 替换、未定义原样保留 + 清单、\{{ 转义、无启用环境视为全未定义）；IdGenerator 自实现 ULID 格式 id；Hermes.Tests 47 用例替换占位冒烟；hermes.md 同步三处偏差（urlencoded body 存储形状、历史行级容错、§4 结构）；全部测试 116 项全绿
+
 ## 0.6.0（2026-08-27）
 
 - 第 5 步「Proteus 工具」完成：格式化工具端到端可用，验证 ITool + IFormatter 两级插件联动。ProteusTool + ProteusPanel（输入/输出分栏、格式与缩进下拉、格式化/压缩/校验/清空/复制、状态栏错误行列、FastColoredTextBox 高亮：json 自定义规则 / xml 内置规则）；非 UI 逻辑独立可测——ProteusOperations（操作编排、FormatException 按校验失败处理、初始格式解析）与 ProteusSettingsStore（settings.json 读写、DR-003 损坏备份恢复）；插件私有依赖 FastColoredTextBox 随部署目标拷入 plugins/；Proteus.Tests 21 用例替换占位冒烟；App 进程冒烟 + 反射驱动端到端冒烟（格式化/校验/重启恢复格式与缩进）替代手工验收；全部测试 70 项全绿
