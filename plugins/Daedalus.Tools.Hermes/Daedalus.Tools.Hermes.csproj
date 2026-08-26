@@ -9,6 +9,11 @@
     <ProjectReference Include="..\..\src\Daedalus.Abstractions\Daedalus.Abstractions.csproj" />
   </ItemGroup>
 
+  <!-- 引擎测试需注入 HttpMessageHandler 桩（HttpClientFactory 的 internal 构造） -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Daedalus.Tools.Hermes.Tests" />
+  </ItemGroup>
+
   <!-- 生成后事件（架构 §5.3）：产物拷贝到 App 输出目录 plugins/，保证 F5 调试即可用 -->
   <PropertyGroup>
     <AppPluginsDir>$(MSBuildProjectDirectory)\..\..\src\Daedalus.App\bin\$(Configuration)\$(TargetFramework)\plugins\</AppPluginsDir>

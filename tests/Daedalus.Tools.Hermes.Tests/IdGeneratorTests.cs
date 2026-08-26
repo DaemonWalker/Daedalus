@@ -27,10 +27,11 @@ public sealed class IdGeneratorTests
     [Fact]
     public void NewId_时间戳前缀_晚生成的时间戳段字典序不早于先生成的()
     {
-        // 前 10 字符为 48 位毫秒时间戳段；同一毫秒内随机段无顺序保证，故只比较时间戳段
+        // 前 9 字符（45 位）完整落在 48 位毫秒时间戳段内；第 10 字符（位 45~49）低 2 位已是随机段，
+        // 同一毫秒内无顺序保证，故只比较前 9 个字符
         string first = IdGenerator.NewId();
         string second = IdGenerator.NewId();
 
-        Assert.True(string.CompareOrdinal(second[..10], first[..10]) >= 0);
+        Assert.True(string.CompareOrdinal(second[..9], first[..9]) >= 0);
     }
 }

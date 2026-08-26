@@ -2,6 +2,10 @@
 
 版本号格式：`大版本.小版本.bug修复`。最新版本在最上方。
 
+## 0.8.0（2026-08-27）
+
+- 第 7 步「Hermes HTTP 引擎」完成：HttpClientFactory（带/不带共享 CookieContainer 双 client 缓存、AllowAutoRedirect 恒 false、"忽略证书校验"开关变化销毁重建、internal 构造注入 handler 供测试，hermes.md §5.2）；HttpEngine（异步发送、取消、逐跳 Stopwatch 计时、重定向手动跟随——303 一律 GET 丢体 / 301·302 对 POST 按浏览器惯例改 GET / 307·308 保方法体重发、相对 Location 相对上一跳解析、Ordinal 精确 URL 环检测、10 跳上限标记，§5.3）；跳转链模型 SendRequest / ResponseHop(HopRequest+HopResponse) / SendResult（超限与环检测标记）；Hermes.Tests 新增 26 例——StubHandler 桩覆盖全部重定向行为与选项生效逻辑（全局/请求级覆盖双向）、回环 TcpListener 迷你 HTTP 服务器验证 Cookie 跨跳共享（避开 HttpListener 的 URL ACL 限制）；顺带修复 step6 的 IdGenerator 时间戳排序测试边界错误（第 10 字符含随机段，改为比较前 9 字符）；全部测试 144 项全绿
+
 ## 0.7.0（2026-08-27）
 
 - 第 6 步「Hermes 数据层」完成：内部模型（集合树 CollectionNode 单类 Folder/Request、请求体 raw/urlEncoded、options 请求级覆盖、环境/历史/设置模型，均带 version 字段）按 hermes.md §11 实现；四个 Store——CollectionStore（collections/<id>.json 读写删、逐文件 DR-003 备份恢复）、EnvironmentStore（environments.json 读写 + Set/Unset 变量立即持久化）、HistoryStore（按天 jsonl 追加、信号量保护、响应体 UTF-8 字节上限截断并置 bodyTruncated、按天读取行级容错）、HermesSettingsStore（settings.json 默认值与损坏恢复）；DR-003 公共读写助手 Persistence/JsonDataFile；VariableResolver（{{var}} 替换、未定义原样保留 + 清单、\{{ 转义、无启用环境视为全未定义）；IdGenerator 自实现 ULID 格式 id；Hermes.Tests 47 用例替换占位冒烟；hermes.md 同步三处偏差（urlencoded body 存储形状、历史行级容错、§4 结构）；全部测试 116 项全绿
