@@ -2,6 +2,10 @@
 
 版本号格式：`大版本.小版本.bug修复`。最新版本在最上方。
 
+## 0.11.0（2026-08-27）
+
+- 第 10 步「Hermes 历史归档与搜索」完成：HistoryArchive（30 天前日文件按月打包到 history/archive/yyyy-MM.7z|zip，面板启动后台检查 + 设置面板"立即归档"按钮；7z 探测依次 7z.exe/7za.exe、压缩 `7z a -mx=9`、校验 `7z t`，缺失时内置 zip SmallestSize 回退 + 回读条目校验；校验通过才删原文件，失败保留并清理半成品，已存在包的月份跳过不合并，FR-HERMES-053）；HistorySearch（原始 jsonl 行不区分大小写全文子串匹配；第一层直搜未压缩文件新→旧；"搜索更久"按月份新→旧逐包推进——zip 流式读取、7z 解压临时目录，每包刷新结果、可中途停止、结束清理临时文件，单包损坏跳过，FR-HERMES-054/055）；7z 调用收口为 ISevenZipRunner 抽象（取消时杀进程树避免占着临时目录），测试注入假桩覆盖 7z 路径；界面：历史区搜索框升级为 400ms 防抖全量真搜索（空关键词恢复最近列表）、直搜为空且存在归档包时出现"搜索更久/停止"按钮、归档记录可重放；Hermes.Tests 新增 20 例共 172 项；跨 6 个月样本自动化冒烟 12 项全过（真实 7z 进程端到端：后台归档→直搜→搜索更久→停止→重放→临时目录清理）；全部测试 241 项全绿
+
 ## 0.10.0（2026-08-27）
 
 - 第 9 步「Hermes 导入与脚本」完成：PostmanImporter（结构嗅探 Collection v2.1 / Environment v1、嵌套文件夹/请求头/体/后事件脚本映射、form-data·graphql·auth·prerequest 等待忽略项汇总、v2.0 等版本明确拒绝、名称冲突追加序号，FR-HERMES-030~033）；CurlImporter（bash 分词——单双引号/转义/续行，-X·--url·-H·--data 系列·-b·-u 转 Basic·-A·-k 映射，未知参数汇总，导入到编辑区不入集合，FR-HERMES-034）；ScriptHost + PostmanApi（Jint 沙箱——每次新建 Engine、内存/超时取自设置、不开 AllowClr 只注入 pm，pm.environment.get/set/unset 与 pm.response.code/text/json/headers.get 子集，sendRequest/test/globals 抛"未实现"，异常隔离进结果不中断流程 FR-HERMES-043；脚本写操作结束后统一经 EnvironmentStore 立即持久化并刷新界面 FR-HERMES-044，只针对最终一跳执行 FR-HERMES-045）；界面接线：导入下拉菜单（Postman 文件 / cURL 粘贴）、响应区最终一跳"脚本输出"页；Jint 随插件部署到 plugins/；Hermes.Tests 新增 33 例共 152 项（样本文件驱动 TestData/ 5 个）；回环端到端冒烟 9 项全过（pm.environment.set → environments.json 落盘 + 面板环境数据源刷新 + 脚本输出页、Postman 样本导入落盘 + 集合树新增 + 脚本载入编辑区）；全部测试 221 项全绿

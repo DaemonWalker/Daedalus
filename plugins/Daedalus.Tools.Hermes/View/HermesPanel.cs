@@ -30,6 +30,8 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
     private readonly HistoryStore _historyStore;
     private readonly HermesSettingsStore _settingsStore;
     private readonly RecentHistoryReader _historyReader;
+    private readonly HistoryArchive _historyArchive;
+    private readonly HistorySearch _historySearch;
     private readonly ResponseBeautifier _beautifier;
     private readonly VariableHoverController _hover;
     private readonly ScriptHost _scriptHost;
@@ -49,6 +51,11 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
     // 发送状态：非 null 表示正在发送（发送按钮此时为"取消"）
     private CancellationTokenSource? _sendCts;
 
+    // 历史搜索状态：_searchCts 管直搜；_deeperCts 非 null 表示归档搜索进行中（"搜索更久"按钮此时为"停止"）
+    private CancellationTokenSource? _searchCts;
+    private CancellationTokenSource? _deeperCts;
+    private string _currentKeyword = string.Empty;
+
     // 当前正在编辑的树中请求；null 表示编辑区未绑定树节点（如历史重放）
     private CollectionPanel.RequestNodeEventArgs? _editingRequest;
 
@@ -67,6 +74,8 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         _historyStore = new HistoryStore(dataDirectory);
         _settingsStore = new HermesSettingsStore(dataDirectory);
         _historyReader = new RecentHistoryReader(_historyStore);
+        _historyArchive = new HistoryArchive(dataDirectory, _logger);
+        _historySearch = new HistorySearch(dataDirectory, _logger);
         _beautifier = new ResponseBeautifier(host);
         _hover = new VariableHoverController(() => _environmentData.FindActive(), SetVariableFromHoverAsync);
         _scriptHost = new ScriptHost(_environmentStore, _logger);
@@ -119,6 +128,9 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         _editor.SendRequested += async (_, _) => await SendOrCancelAsync();
         _editor.SaveRequested += (_, _) => SaveCurrentEditing();
         _historyPanel.ReplayRequested += (_, entry) => ReplayHistory(entry);
+        _historyPanel.SearchRequested += async (_, keyword) => await RunHistorySearchAsync(keyword);
+        _historyPanel.SearchDeeperRequested += async (_, _) => await RunDeeperSearchAsync();
+        _historyPanel.SearchStopRequested += (_, _) => _deeperCts?.Cancel();
         Load += HermesPanel_Load;
     }
 
@@ -176,6 +188,9 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
             }
 
             await RefreshHistoryAsync();
+
+            // 启动时后台归档检查（hermes.md §10.2，FR-HERMES-053）：即发即弃，不拖慢面板加载
+            _ = RunStartupArchiveCheckAsync();
         }
         catch (Exception ex)
         {
@@ -261,7 +276,67 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
                 _tool.ClientFactory.SetIgnoreServerCertificate(settings.IgnoreServerCertificate);
             }
         };
+        form.ArchiveRequested += async (_, _) => await RunManualArchiveAsync(form);
         form.ShowDialog(this);
+    }
+
+    /// <summary>设置面板"立即归档"（FR-HERMES-053 手动入口）：执行归档并反馈结果。</summary>
+    private async Task RunManualArchiveAsync(IWin32Window owner)
+    {
+        try
+        {
+            HistoryArchiveResult result = await _historyArchive.ArchiveOldFilesAsync();
+            string message;
+            if (result.ArchivedMonths.Count == 0 && result.SkippedMonths.Count == 0 && result.FailedMonths.Count == 0)
+            {
+                message = "没有需要归档的历史文件。";
+            }
+            else
+            {
+                var lines = new List<string>();
+                if (result.ArchivedMonths.Count > 0)
+                {
+                    lines.Add($"已归档（{result.Compressor}）：{string.Join("、", result.ArchivedMonths)}");
+                }
+                if (result.SkippedMonths.Count > 0)
+                {
+                    lines.Add($"已跳过（归档包已存在，原文件保留）：{string.Join("、", result.SkippedMonths)}");
+                }
+                if (result.FailedMonths.Count > 0)
+                {
+                    lines.Add($"归档失败（原文件保留，详见日志）：{string.Join("、", result.FailedMonths)}");
+                }
+
+                message = string.Join('\n', lines);
+            }
+
+            MessageBox.Show(owner, message, "历史归档", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "手动归档历史失败");
+            MessageBox.Show(owner, $"归档失败：{ex.Message}", "历史归档", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    /// <summary>启动时后台归档检查（hermes.md §10.2）；有归档动作时刷新历史列表并在状态栏提示。</summary>
+    private async Task RunStartupArchiveCheckAsync()
+    {
+        try
+        {
+            HistoryArchiveResult result = await _historyArchive.ArchiveOldFilesAsync();
+            if (result.ArchivedMonths.Count > 0)
+            {
+                _statusLabel.Text = $"已归档 {result.ArchivedMonths.Count} 个月的历史（{string.Join("、", result.ArchivedMonths)}，{result.Compressor}）";
+                await RefreshHistoryAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            // 归档是后台辅助动作，失败只提示不干扰主流程（原文件均保留）
+            _logger.Error(ex, "启动归档检查失败");
+            _statusLabel.Text = $"历史归档检查失败：{ex.Message}";
+        }
     }
 
     private async Task SetVariableFromHoverAsync(string name, string value)
@@ -579,6 +654,96 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
     }
 
     // ---------- 历史 ----------
+
+    /// <summary>历史搜索框防抖结束（FR-HERMES-054）：空关键词恢复最近列表；否则直搜未压缩 jsonl。</summary>
+    private async Task RunHistorySearchAsync(string keyword)
+    {
+        // 直搜与归档搜索互斥：换关键词先停掉进行中的归档搜索
+        _deeperCts?.Cancel();
+        _searchCts?.Cancel();
+        _searchCts?.Dispose();
+        _searchCts = new CancellationTokenSource();
+        _currentKeyword = keyword;
+        CancellationToken cancellationToken = _searchCts.Token;
+
+        if (keyword.Length == 0)
+        {
+            _historyPanel.SetDeeperSearchAvailable(false);
+            await RefreshHistoryAsync();
+            return;
+        }
+
+        try
+        {
+            HistorySearchResult result = await _historySearch.SearchRecentAsync(keyword, cancellationToken);
+            _historyPanel.ShowSearchResults(result.Entries);
+            // 结果为空且存在归档包时显示"搜索更久"按钮（hermes.md §3）
+            _historyPanel.SetDeeperSearchAvailable(result.Entries.Count == 0 && _historySearch.HasArchives());
+
+            string status = result.Entries.Count == 0
+                ? "未找到匹配的历史记录"
+                : $"找到 {result.Entries.Count} 条匹配的历史记录";
+            if (result.SkippedLines > 0)
+            {
+                status += $"（另有 {result.SkippedLines} 行命中但损坏无法展示）";
+            }
+
+            _statusLabel.Text = status;
+        }
+        catch (OperationCanceledException)
+        {
+            // 被更新的搜索取代，无需提示
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "搜索历史失败");
+            _statusLabel.Text = $"历史搜索失败：{ex.Message}";
+        }
+    }
+
+    /// <summary>"搜索更久"（FR-HERMES-055）：从最新到最旧逐包搜索归档，每包刷新一次结果；可停止。</summary>
+    private async Task RunDeeperSearchAsync()
+    {
+        string keyword = _currentKeyword;
+        if (keyword.Length == 0 || _deeperCts is not null)
+        {
+            return;
+        }
+
+        _deeperCts = new CancellationTokenSource();
+        _historyPanel.SetDeeperSearchRunning(true);
+
+        var accumulated = new List<HistoryEntry>();
+        int packages = 0;
+        try
+        {
+            await foreach (HistorySearchBatch batch in _historySearch.SearchArchivesAsync(keyword, _deeperCts.Token))
+            {
+                packages++;
+                accumulated.AddRange(batch.Entries);
+                // 每处理完一个包刷新一次结果（hermes.md §10.3）；按钮只在直搜为空时出现，故直接替换列表
+                _historyPanel.ShowSearchResults([.. accumulated]);
+                _statusLabel.Text = $"正在搜索归档：已处理 {batch.ArchiveName}，累计命中 {accumulated.Count} 条";
+            }
+
+            _statusLabel.Text = $"归档搜索完成：共处理 {packages} 个归档包，命中 {accumulated.Count} 条";
+        }
+        catch (OperationCanceledException)
+        {
+            _statusLabel.Text = $"已停止归档搜索（已处理 {packages} 个包，命中 {accumulated.Count} 条）";
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "归档历史搜索失败");
+            _statusLabel.Text = $"归档搜索失败：{ex.Message}";
+        }
+        finally
+        {
+            _historyPanel.SetDeeperSearchRunning(false);
+            _deeperCts.Dispose();
+            _deeperCts = null;
+        }
+    }
 
     private async Task RefreshHistoryAsync()
     {

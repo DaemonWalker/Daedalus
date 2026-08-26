@@ -149,7 +149,8 @@ public sealed class HistoryStore
         return text[..i];
     }
 
-    private static HistoryEntry? TryDeserializeLine(string line)
+    // internal：HistorySearch 复用同一反序列化口径（行级容错）
+    internal static HistoryEntry? TryDeserializeLine(string line)
     {
         try
         {
