@@ -7,6 +7,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- 组合根直接配置 Serilog 滚动文件管道（NFR-001） -->
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Sinks.File" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Daedalus.Abstractions\Daedalus.Abstractions.csproj" />
     <ProjectReference Include="..\Daedalus.Hosting\Daedalus.Hosting.csproj" />
   </ItemGroup>

@@ -1,15 +1,196 @@
+using Daedalus.Abstractions;
+using Daedalus.Hosting;
+
+using Serilog;
+
 namespace Daedalus.App;
 
 /// <summary>
-/// 主窗口（工具箱外壳）。第 1 步脚手架阶段为空白窗口；
-/// 工具列表与标签页容器在第 3 步实现。
+/// 主窗口（工具箱外壳，架构 §6）：左侧工具列表 + 右侧标签页容器 + 底部状态栏。
+/// 双击工具名调用 <see cref="ITool.CreateView"/> 开新标签页（FR-SHELL-002），同一工具可开多个、
+/// 标签页点 × 或中键关闭（FR-SHELL-003）；插件加载失败清单显示在状态栏、点击查看详情（FR-SHELL-004）。
 /// </summary>
 internal sealed class MainForm : Form
 {
-    public MainForm()
+    private const int CloseButtonSize = 14;
+
+    private readonly PluginCatalog _catalog;
+    private readonly IToolHost _host;
+    private readonly ILogger _logger;
+    private readonly TabControl _tabs;
+
+    // 各标签页 × 按钮的命中区域，在 OwnerDraw 时计算；标签页增删后索引位移，需清空重算
+    private readonly Dictionary<int, Rectangle> _closeButtonBounds = [];
+
+    public MainForm(PluginCatalog catalog, IToolHost host, ILogger logger)
     {
+        ArgumentNullException.ThrowIfNull(catalog);
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(logger);
+        _catalog = catalog;
+        _host = host;
+        _logger = logger;
+
         Text = "Daedalus";
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(1024, 768);
+
+        _tabs = new TabControl
+        {
+            Dock = DockStyle.Fill,
+            DrawMode = TabDrawMode.OwnerDrawFixed,
+            Padding = new Point(20, 4),
+        };
+        _tabs.DrawItem += OnTabDrawItem;
+        _tabs.MouseClick += OnTabMouseClick;
+
+        var toolList = new ListBox { Dock = DockStyle.Fill, IntegralHeight = false };
+        foreach (ITool tool in _catalog.Tools)
+        {
+            toolList.Items.Add(new ToolListItem(tool));
+        }
+
+        toolList.DoubleClick += (_, _) => OpenSelectedTool(toolList);
+
+        var toolPanel = new Panel { Dock = DockStyle.Left, Width = 200 };
+        var toolHeader = new Label
+        {
+            Dock = DockStyle.Top,
+            Text = "工具（双击打开）",
+            Padding = new Padding(6, 8, 6, 4),
+            AutoSize = true,
+        };
+        toolPanel.Controls.Add(toolList);
+        toolPanel.Controls.Add(toolHeader);
+
+        var statusStrip = new StatusStrip();
+        var statusLabel = new ToolStripStatusLabel();
+        statusStrip.Items.Add(statusLabel);
+        if (_catalog.Failures.Count > 0)
+        {
+            statusLabel.Text = $"{_catalog.Failures.Count} 个插件加载失败（点击查看详情）";
+            statusLabel.IsLink = true;
+            statusLabel.Click += (_, _) => ShowLoadFailures();
+        }
+        else
+        {
+            statusLabel.Text = $"插件加载完成：{_catalog.Tools.Count} 个工具，{_catalog.Formatters.Count} 个格式化器";
+        }
+
+        // 停靠顺序与 z-order 相反：后添加的先停靠，故 Fill 的 TabControl 最先加入
+        Controls.Add(_tabs);
+        Controls.Add(toolPanel);
+        Controls.Add(statusStrip);
+    }
+
+    private void OpenSelectedTool(ListBox toolList)
+    {
+        if (toolList.SelectedItem is not ToolListItem item)
+        {
+            return;
+        }
+
+        ITool tool = item.Tool;
+        Control view;
+        try
+        {
+            view = tool.CreateView(_host);
+        }
+        catch (Exception ex)
+        {
+            // 插件边界兜底（架构 §8）：CreateView 抛异常不允许拖垮外壳
+            _logger.Error(ex, "工具 {ToolId} 创建主面板失败", tool.Metadata.Id);
+            MessageBox.Show(
+                this,
+                $"打开工具「{tool.Metadata.DisplayName}」失败：{ex.Message}",
+                Text,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return;
+        }
+
+        view.Dock = DockStyle.Fill;
+        var page = new TabPage(GetTabTitle(tool));
+        page.Controls.Add(view);
+        _tabs.TabPages.Add(page);
+        _tabs.SelectedTab = page;
+    }
+
+    private string GetTabTitle(ITool tool)
+    {
+        string title = tool.Metadata.DisplayName;
+        int count = _tabs.TabPages.Cast<TabPage>().Count(p => p.Text == title || p.Text.StartsWith(title + " (", StringComparison.Ordinal));
+        return count == 0 ? title : $"{title} ({count + 1})";
+    }
+
+    private void ShowLoadFailures()
+    {
+        string details = string.Join(
+            Environment.NewLine + Environment.NewLine,
+            _catalog.Failures.Select(f => $"{f.DllName}\n{f.Exception.Message}"));
+        MessageBox.Show(this, details, "插件加载失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+    }
+
+    private void OnTabDrawItem(object? sender, DrawItemEventArgs e)
+    {
+        e.DrawBackground();
+        Rectangle tabBounds = _tabs.GetTabRect(e.Index);
+        var textBounds = new Rectangle(
+            tabBounds.X + 6,
+            tabBounds.Y,
+            tabBounds.Width - CloseButtonSize - 16,
+            tabBounds.Height);
+        TextRenderer.DrawText(
+            e.Graphics,
+            _tabs.TabPages[e.Index].Text,
+            _tabs.Font,
+            textBounds,
+            _tabs.ForeColor,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+
+        var closeBounds = new Rectangle(
+            tabBounds.Right - CloseButtonSize - 6,
+            tabBounds.Y + (tabBounds.Height - CloseButtonSize) / 2,
+            CloseButtonSize,
+            CloseButtonSize);
+        _closeButtonBounds[e.Index] = closeBounds;
+        TextRenderer.DrawText(
+            e.Graphics,
+            "×",
+            _tabs.Font,
+            closeBounds,
+            Color.Gray,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+    }
+
+    private void OnTabMouseClick(object? sender, MouseEventArgs e)
+    {
+        for (int i = 0; i < _tabs.TabPages.Count; i++)
+        {
+            bool isHit = e.Button == MouseButtons.Middle
+                ? _tabs.GetTabRect(i).Contains(e.Location)
+                : e.Button == MouseButtons.Left
+                    && _closeButtonBounds.TryGetValue(i, out Rectangle bounds)
+                    && bounds.Contains(e.Location);
+            if (isHit)
+            {
+                CloseTab(i);
+                return;
+            }
+        }
+    }
+
+    private void CloseTab(int index)
+    {
+        TabPage page = _tabs.TabPages[index];
+        _tabs.TabPages.RemoveAt(index);
+        _closeButtonBounds.Clear();
+        page.Dispose();
+    }
+
+    /// <summary>工具列表项：ListBox 按 <see cref="ToString"/> 显示工具名。</summary>
+    private sealed record ToolListItem(ITool Tool)
+    {
+        public override string ToString() => Tool.Metadata.DisplayName;
     }
 }

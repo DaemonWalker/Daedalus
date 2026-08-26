@@ -2,6 +2,10 @@
 
 版本号格式：`大版本.小版本.bug修复`。最新版本在最上方。
 
+## 0.4.0（2026-08-26）
+
+- 第 3 步「主程序外壳」完成：主窗口实现工具列表 + 可关闭标签页容器（双击开工具、×/中键关标签页，FR-SHELL-002/003）与状态栏插件加载失败清单（FR-SHELL-004）；ToolHost 实现 IToolHost（数据目录分配、Serilog 日志器工厂、格式化器查询，FR-SHELL-005）；组合根接入 Serilog 按天滚动日志（logs/，保留 14 天，NFR-001）与 ThreadException 兜底（记日志 + 友好提示）；新建 Daedalus.App.Tests（ToolHost 8 用例），全部测试 17 项全绿
+
 ## 0.3.0（2026-08-26）
 
 - 第 2 步「契约 + 插件加载」完成：Abstractions 契约定稿（ToolMetadata / ITool / IToolHost / FormatOptions / IFormatter，架构 §4）；Hosting 新增 PluginLoader（平铺扫描 plugins/*.dll、每插件独立可收集 AssemblyLoadContext、契约与 Serilog 共享宿主上下文、内存流加载不锁文件、失败隔离 + 失败清单）与 PluginCatalog / PluginLoadFailure；新增两个测试桩插件工程（正常 / 静态构造抛异常），Hosting 单测 5 项全绿
