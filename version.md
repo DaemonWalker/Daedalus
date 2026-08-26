@@ -2,6 +2,10 @@
 
 版本号格式：`大版本.小版本.bug修复`。最新版本在最上方。
 
+## 1.0.1（2026-08-27）
+
+- 新增构建脚本 `build.ps1` / `build.bat`（cmd 包装）：一键编译整个解决方案（src + plugins + tests），支持 Debug/Release 与 `-Clean`，构建后插件自动部署到 App 输出目录 plugins/
+
 ## 1.0.0（2026-08-27）
 
 - 第 11 步「收尾」完成，首个全功能版本（重大里程碑）。本期交付：插件化工具箱外壳（Daedalus.App + Hosting——ITool/IFormatter 两级插件扫描加载、失败隔离与清单、IToolHost 宿主服务、Serilog 按天滚动日志、异常兜底）；Proteus 格式化工具（JSON/XML 第一方格式化器，格式化/压缩/校验含行列报错，FastColoredTextBox 高亮，设置持久化）；Hermes HTTP 客户端（请求编辑与发送、重定向跳转链每跳 tab、Cookie 共享与请求级覆盖、忽略证书校验开关、集合树 CRUD/拖拽、环境变量与 {{var}} 悬浮编辑、Postman/cURL 导入、Jint 后事件脚本沙箱 pm API、历史按天 jsonl 全量保存、30 天前按月归档 7z/zip、分层搜索与"搜索更久"）。全部测试 241 项全绿。本步内容：按需求文档逐条核对 FR/NFR（引用 step1~10 验证记录，纯鼠标交互路径如实标注"建议人工目视抽查"）；发布验证（exe + plugins/ + 空 data/logs 拷到干净目录可启动、插件全载、冷启动约 228ms），并修复验证发现的真实缺陷——Hermes 部署目标漏拷 Jint 4.4 拆分出的 Acornima.dll，部署形态下后事件脚本引擎不可用（补拷后干净目录 0 插件加载失败、ALC 冒烟脚本执行成功）；三份总文档与四份插件文档对照实现核对（修正架构 §6.1 数据目录树、Proteus 布局图补"复制输出"按钮），全部文档版本头去除"草案"
