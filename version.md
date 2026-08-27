@@ -2,6 +2,10 @@
 
 版本号格式：`大版本.小版本.bug修复`。最新版本在最上方。
 
+## 1.6.0（2026-08-27）
+
+- 第 17 步「Oedipus 解码工具」完成：新增解码工具插件 Oedipus（俄狄浦斯，id `daedalus.tools.oedipus`，显示名「Oedipus 解码」）——支持 Base64（`Convert.FromBase64String` → 严格 UTF-8 还原，非法格式/非 UTF-8 字节明确报错）、URL（`Uri.UnescapeDataString`）、XML 实体（`WebUtility.HtmlDecode`，覆盖预定义实体与十/十六进制数字实体）解码（FR-OEDIPUS-002）；JWT 解码（header/payload 经 Base64Url 解码后 System.Text.Json 美化输出——缩进 2、`UnsafeRelaxedJsonEscaping` 中文不转义；签名段不解码、原样标注于输出末尾；段数不符/非法 Base64Url/段内非法 JSON 均明确报错，FR-OEDIPUS-003）；界面为方式下拉（DropDownList）+ 解码/清空/复制输出 + SplitContainer 左右多行 TextBox + StatusStrip（FR-OEDIPUS-001）；settings.json（`{ "version": 1, "lastDecoding": "base64" }`）记住上次解码方式、启动恢复（FR-OEDIPUS-004），DR-003 损坏备份恢复，字段缺失/未知 id 容忍回落默认。纯 BCL 实现不新增第三方依赖；OedipusOperations 非 UI 可测（方式清单、错误收敛为状态文本、初始方式解析），OedipusTool/OedipusPanel 走架构 §6.0 注册范式（transient + scope 随标签页生灭）。Oedipus.Tests 27 例（四类解码向量/错误路径/JWT 完整解码/设置往返/DR-003/Tool 冒烟）；文档同步——新建 oedipus.md（含 §5.1 JWT 输出形态），requirements §1/§5.6、architecture §2/§6.1/§7、coding-style §2.1、plan README；全部测试 300 项全绿
+
 ## 1.5.0（2026-08-27）
 
 - 第 16 步「Cadmus 编码工具」完成：新增编码工具插件 Cadmus（卡德摩斯，id `daedalus.tools.cadmus`，显示名「Cadmus 编码」）——支持 Base64（UTF-8 字节序列 `Convert.ToBase64String`）与 URL（`Uri.EscapeDataString`）编码（FR-CADMUS-002）；界面为方式下拉（DropDownList）+ 编码/清空/复制输出 + SplitContainer 左右多行 TextBox（输入可编辑/输出只读）+ StatusStrip（FR-CADMUS-001）；settings.json（`{ "version": 1, "lastEncoding": "base64" }`）记住上次编码方式、启动恢复（FR-CADMUS-003），DR-003 损坏备份恢复，字段缺失/未知 id 容忍回落默认。纯 BCL 实现不新增第三方依赖（普通 TextBox，不引 FastColoredTextBox）；CadmusOperations 非 UI 可测（方式清单、错误收敛为状态文本、初始方式解析），CadmusTool/CadmusPanel 走架构 §6.0 注册范式（transient + scope 随标签页生灭）。Cadmus.Tests 18 例（编码向量/设置往返/DR-003/Tool 冒烟）；文档同步——新建 cadmus.md，requirements §1/§5.5、architecture §2/§6.1/§7、coding-style §2.1、plan README；全部测试 273 项全绿
