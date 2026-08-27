@@ -46,6 +46,7 @@ public sealed class ScriptHost(EnvironmentStore environmentStore, ILogger logger
 
         var api = new PostmanApi(response, environmentData.FindActive());
         string? error = null;
+        logger.Debug("开始执行后事件脚本（{ScriptLength} 字符，状态 {Status}）", script.Length, response.Status);
         try
         {
             var engine = new Engine(options => options
@@ -88,6 +89,8 @@ public sealed class ScriptHost(EnvironmentStore environmentStore, ILogger logger
             }
         }
 
+        logger.Debug("后事件脚本执行结束：{Outcome}，环境写操作 {MutationCount} 条",
+            error is null ? "成功" : "失败", api.Environment.MutationLog.Count);
         return new ScriptExecutionResult(error, updated, api.Environment.MutationLog);
     }
 }

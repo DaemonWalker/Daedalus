@@ -42,6 +42,10 @@ public sealed class HermesTool : ITool
     public Control CreateView(IToolHost host)
     {
         ArgumentNullException.ThrowIfNull(host);
+        // 引擎与编排为工具生命周期共享：首次开标签页时注入插件日志器（Debug 逐跳/变量替换日志）
+        Serilog.ILogger logger = host.GetLogger(ToolId);
+        _engine ??= new HttpEngine(_clientFactory, logger);
+        _orchestrator ??= new SendOrchestrator(Engine, logger);
         return new HermesPanel(host, this);
     }
 }

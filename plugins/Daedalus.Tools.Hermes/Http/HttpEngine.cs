@@ -7,6 +7,8 @@ using Daedalus.Tools.Hermes.Collections;
 using Daedalus.Tools.Hermes.History;
 using Daedalus.Tools.Hermes.Settings;
 
+using Serilog;
+
 namespace Daedalus.Tools.Hermes.Http;
 
 /// <summary>
@@ -14,7 +16,8 @@ namespace Daedalus.Tools.Hermes.Http;
 /// 不持有设置，每次发送经参数传入全局设置，与请求级覆盖合成生效值。
 /// </summary>
 /// <param name="clientFactory">按生效 Cookie 设置提供 client 的工厂。</param>
-public sealed class HttpEngine(HttpClientFactory clientFactory)
+/// <param name="logger">插件日志器；为 null 时不写日志（主要用于测试）。</param>
+public sealed class HttpEngine(HttpClientFactory clientFactory, ILogger? logger = null)
 {
     /// <summary>重定向跟随上限（跳数，FR-HERMES-006 固定 10 跳）。</summary>
     public const int MaxRedirectHops = 10;
@@ -57,6 +60,10 @@ public sealed class HttpEngine(HttpClientFactory clientFactory)
                     hops.Count + 1,
                     SnapshotRequest(method, url, message, bodyText),
                     SnapshotResponse(response, responseBody, stopwatch.ElapsedMilliseconds)));
+
+                // 逐跳 Debug：定位重定向链问题时对照界面"跳转链"页（hermes.md §5.3）
+                logger?.Debug("HTTP 第 {Hop} 跳：{Method} {Url} → {Status}，耗时 {ElapsedMs} ms",
+                    hops.Count, method, url, (int)response.StatusCode, stopwatch.ElapsedMilliseconds);
 
                 if (!followRedirects || !IsRedirect(response.StatusCode))
                 {

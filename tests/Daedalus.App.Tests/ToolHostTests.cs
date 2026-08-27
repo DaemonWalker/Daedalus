@@ -61,14 +61,15 @@ public sealed class ToolHostTests : IDisposable
     }
 
     [Fact]
-    public void GetLogger_写入日志_日志事件携带插件id上下文()
+    public void GetLogger_写入日志_日志事件SourceContext为插件id()
     {
         var host = new ToolHost(_baseDirectory, _logger, []);
 
         host.GetLogger("daedalus.tools.stub").Information("测试消息");
 
+        // SourceContext 承载插件 id：daedalus.json 的 logging.overrides 按此前缀匹配（架构 §6.2）
         LogEvent logEvent = Assert.Single(_events);
-        Assert.True(logEvent.Properties.TryGetValue("PluginId", out LogEventPropertyValue? value));
+        Assert.True(logEvent.Properties.TryGetValue("SourceContext", out LogEventPropertyValue? value));
         Assert.Equal("daedalus.tools.stub", Assert.IsType<ScalarValue>(value).Value);
     }
 

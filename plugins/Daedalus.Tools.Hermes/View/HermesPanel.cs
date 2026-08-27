@@ -72,7 +72,7 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         _collectionStore = new CollectionStore(dataDirectory);
         _environmentStore = new EnvironmentStore(dataDirectory);
         _historyStore = new HistoryStore(dataDirectory);
-        _settingsStore = new HermesSettingsStore(dataDirectory);
+        _settingsStore = new HermesSettingsStore(dataDirectory, _logger);
         _historyReader = new RecentHistoryReader(_historyStore);
         _historyArchive = new HistoryArchive(dataDirectory, _logger);
         _historySearch = new HistorySearch(dataDirectory, _logger);
@@ -499,6 +499,9 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         try
         {
             SendResult result = await _tool.Orchestrator.SendAsync(prepared, _settings, _sendCts.Token);
+            _logger.Debug("发送完成：状态 {Status}，共 {HopCount} 跳，{HasScript}",
+                result.FinalHop.Response.Status, result.Hops.Count,
+                draft.PostResponseScript is not null ? "有后事件脚本" : "无后事件脚本");
 
             // 后事件脚本（FR-HERMES-040/045）：只针对最终一跳执行一次；异常隔离进"脚本输出"页（FR-HERMES-043）
             ScriptExecutionResult? scriptResult = null;

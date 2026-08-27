@@ -13,14 +13,16 @@ internal static class Program
     {
         string baseDirectory = AppContext.BaseDirectory;
 
-        // Serilog 滚动文件（NFR-001）：logs/daedalus-*.log，按天滚动，保留 14 天
-        Log.Logger = new LoggerConfiguration()
-            .MinimumLevel.Information()
-            .WriteTo.File(
-                Path.Combine(baseDirectory, "logs", "daedalus-.log"),
-                rollingInterval: RollingInterval.Day,
-                retainedFileCountLimit: 14)
-            .CreateLogger();
+        // 日志级别经 daedalus.json 配置（架构 §6.2）：解析发生在 Serilog 初始化之前，
+        // 解析警告先收集，待日志器建好后补记
+        var loggingWarnings = new List<string>();
+        LoggingSettings loggingSettings = LoggingBootstrap.Load(
+            Path.Combine(baseDirectory, LoggingBootstrap.ConfigFileName), loggingWarnings);
+        Log.Logger = LoggingBootstrap.CreateConfiguration(baseDirectory, loggingSettings).CreateLogger();
+        foreach (string warning in loggingWarnings)
+        {
+            Log.Warning("日志配置：{Warning}", warning);
+        }
 
         try
         {

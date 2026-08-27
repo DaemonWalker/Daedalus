@@ -4,6 +4,8 @@ using Daedalus.Tools.Hermes.Http;
 using Daedalus.Tools.Hermes.Settings;
 using Daedalus.Tools.Hermes.Variables;
 
+using Serilog;
+
 namespace Daedalus.Tools.Hermes.Editing;
 
 /// <summary>变量替换完成、待发送的请求。</summary>
@@ -16,7 +18,8 @@ public sealed record PreparedRequest(SendRequest Request, IReadOnlyList<string> 
 /// 不碰 UI，历史落盘由调用方（面板）经 HistoryStore 异步执行。
 /// </summary>
 /// <param name="engine">HTTP 引擎。</param>
-public sealed class SendOrchestrator(HttpEngine engine)
+/// <param name="logger">插件日志器；为 null 时不写日志（主要用于测试）。</param>
+public sealed class SendOrchestrator(HttpEngine engine, ILogger? logger = null)
 {
     private readonly VariableResolver _resolver = new();
 
@@ -27,6 +30,7 @@ public sealed class SendOrchestrator(HttpEngine engine)
     public PreparedRequest Prepare(RequestDraft draft, HermesEnvironment? environment)
     {
         ArgumentNullException.ThrowIfNull(draft);
+        logger?.Debug("变量替换开始：{Method} {Url}", draft.Method, draft.Url);
         var undefined = new List<string>();
 
         string url = Resolve(draft.Url, environment, undefined);
@@ -34,6 +38,8 @@ public sealed class SendOrchestrator(HttpEngine engine)
             h with { Value = Resolve(h.Value, environment, undefined) })];
         RequestBody? body = ResolveBody(draft.Body, environment, undefined);
 
+        // Debug 记录替换结果：环境取值是否生效（尤其未定义变量数）是发送问题的常见排查入口
+        logger?.Debug("变量替换完成：{ResolvedUrl}，未定义变量 {UndefinedCount} 个", url, undefined.Count);
         return new PreparedRequest(new SendRequest(draft.Method, url, headers, body, draft.Options), undefined);
     }
 

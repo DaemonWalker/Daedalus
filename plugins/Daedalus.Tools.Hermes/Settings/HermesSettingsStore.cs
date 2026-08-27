@@ -1,5 +1,7 @@
 using Daedalus.Tools.Hermes.Persistence;
 
+using Serilog;
+
 namespace Daedalus.Tools.Hermes.Settings;
 
 /// <summary>设置读取结果。</summary>
@@ -18,12 +20,15 @@ public sealed record HermesSettingsLoadResult(
 public sealed class HermesSettingsStore
 {
     private readonly string _filePath;
+    private readonly ILogger? _logger;
 
     /// <param name="dataDirectory">工具数据目录（由 <c>IToolHost.GetDataDirectory</c> 分配）。</param>
-    public HermesSettingsStore(string dataDirectory)
+    /// <param name="logger">插件日志器；为 null 时不写日志（主要用于测试）。</param>
+    public HermesSettingsStore(string dataDirectory, ILogger? logger = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
         _filePath = Path.Combine(dataDirectory, "settings.json");
+        _logger = logger;
     }
 
     /// <summary>读取设置；文件不存在返回默认值（不视为损坏），损坏时备份原文件并返回默认值。</summary>
@@ -31,11 +36,15 @@ public sealed class HermesSettingsStore
     {
         JsonDataFileLoadResult<HermesSettings> result =
             await JsonDataFile.LoadAsync<HermesSettings>(_filePath, static s => s.IsValid).ConfigureAwait(false);
+
+        // Debug 记录加载来源（默认/文件/损坏恢复）：设置"改了不生效"类问题的排查入口
         if (result.BackupFilePath is not null)
         {
+            _logger?.Debug("设置文件损坏，已备份到 {BackupPath}，以默认值启动", result.BackupFilePath);
             return new HermesSettingsLoadResult(HermesSettings.Default, true, result.BackupFilePath);
         }
 
+        _logger?.Debug(result.Value is null ? "设置文件不存在，使用默认值" : "从 {FilePath} 加载设置", _filePath);
         return new HermesSettingsLoadResult(result.Value ?? HermesSettings.Default, false, null);
     }
 
@@ -44,5 +53,6 @@ public sealed class HermesSettingsStore
     {
         ArgumentNullException.ThrowIfNull(settings);
         await JsonDataFile.SaveAsync(_filePath, settings).ConfigureAwait(false);
+        _logger?.Debug("设置已保存到 {FilePath}", _filePath);
     }
 }

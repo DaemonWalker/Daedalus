@@ -1,6 +1,7 @@
 using Daedalus.Abstractions;
 
 using Serilog;
+using Serilog.Core;
 
 namespace Daedalus.App;
 
@@ -13,7 +14,7 @@ public sealed class ToolHost : IToolHost
     private readonly ILogger _logger;
 
     /// <param name="baseDirectory">程序目录，数据目录根为其下的 data/。</param>
-    /// <param name="logger">宿主根日志器，插件日志器经 <c>ForContext</c> 派生。</param>
+    /// <param name="logger">宿主根日志器，插件日志器经 <c>ForContext(SourceContext, 插件id)</c> 派生。</param>
     /// <param name="formatters">Hosting 加载出的格式化器表。</param>
     public ToolHost(string baseDirectory, ILogger logger, IReadOnlyList<IFormatter> formatters)
     {
@@ -34,6 +35,7 @@ public sealed class ToolHost : IToolHost
         ArgumentException.ThrowIfNullOrWhiteSpace(toolId);
         string directory = Path.Combine(_dataRootDirectory, toolId);
         Directory.CreateDirectory(directory);
+        _logger.Debug("为插件 {PluginId} 分配数据目录 {Directory}", toolId, directory);
         return directory;
     }
 
@@ -41,7 +43,11 @@ public sealed class ToolHost : IToolHost
     public ILogger GetLogger(string pluginId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
-        return _logger.ForContext("PluginId", pluginId);
+        // 必须用 SourceContext 承载插件 id：daedalus.json 的 logging.overrides 经
+        // Serilog MinimumLevel.Override 按 SourceContext 前缀匹配生效（架构 §6.2）。
+        // 因此插件侧不得再用 ForContext<T>() 覆盖该属性（规范 §7）
+        _logger.Debug("为插件 {PluginId} 创建日志器", pluginId);
+        return _logger.ForContext(Constants.SourceContextPropertyName, pluginId);
     }
 
     /// <inheritdoc/>

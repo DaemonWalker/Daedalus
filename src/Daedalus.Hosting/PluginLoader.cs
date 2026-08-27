@@ -36,14 +36,17 @@ public sealed class PluginLoader
 
         if (!Directory.Exists(pluginsDirectory))
         {
+            _logger?.Debug("插件目录 {PluginsDirectory} 不存在，按空结果返回", pluginsDirectory);
             return new PluginCatalog(tools, formatters, failures, loadContexts);
         }
 
+        _logger?.Debug("开始扫描插件目录 {PluginsDirectory}", pluginsDirectory);
         foreach (string dllPath in Directory.EnumerateFiles(pluginsDirectory, "*.dll", SearchOption.TopDirectoryOnly))
         {
             string dllName = Path.GetFileName(dllPath);
             try
             {
+                _logger?.Debug("开始加载插件 {DllName}", dllName);
                 loadContexts.Add(LoadPlugin(dllPath, tools, formatters));
             }
             catch (Exception ex)
@@ -58,8 +61,9 @@ public sealed class PluginLoader
         return new PluginCatalog(tools, formatters, failures, loadContexts);
     }
 
-    private static PluginAssemblyLoadContext LoadPlugin(string dllPath, List<ITool> tools, List<IFormatter> formatters)
+    private PluginAssemblyLoadContext LoadPlugin(string dllPath, List<ITool> tools, List<IFormatter> formatters)
     {
+        string dllName = Path.GetFileName(dllPath);
         var context = new PluginAssemblyLoadContext(dllPath);
 
         // 经内存流加载程序集，避免应用运行期间锁定 plugins/ 下的 dll 文件
@@ -69,6 +73,8 @@ public sealed class PluginLoader
             assembly = context.LoadFromStream(stream);
         }
 
+        int toolCount = 0;
+        int formatterCount = 0;
         foreach (Type type in assembly.GetExportedTypes())
         {
             if (!type.IsClass || type.IsAbstract)
@@ -79,13 +85,18 @@ public sealed class PluginLoader
             if (type.IsAssignableTo(typeof(ITool)) && Activator.CreateInstance(type) is ITool tool)
             {
                 tools.Add(tool);
+                toolCount++;
+                _logger?.Debug("插件 {DllName} 发现工具 {ToolId}（{TypeName}）", dllName, tool.Metadata.Id, type.FullName);
             }
             else if (type.IsAssignableTo(typeof(IFormatter)) && Activator.CreateInstance(type) is IFormatter formatter)
             {
                 formatters.Add(formatter);
+                formatterCount++;
+                _logger?.Debug("插件 {DllName} 发现格式化器 {FormatId}（{TypeName}）", dllName, formatter.FormatId, type.FullName);
             }
         }
 
+        _logger?.Debug("插件 {DllName} 加载完成：{ToolCount} 个工具、{FormatterCount} 个格式化器", dllName, toolCount, formatterCount);
         return context;
     }
 }

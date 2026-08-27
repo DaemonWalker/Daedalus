@@ -2,6 +2,10 @@
 
 版本号格式：`大版本.小版本.bug修复`。最新版本在最上方。
 
+## 1.2.0（2026-08-27）
+
+- 第 13 步「日志配置化」完成：程序目录 daedalus.json 支持日志级别配置（logging.default + logging.overrides 按插件 id 提级，文件缺失用默认 Information、JSON 损坏/级别不识记 Warning 并回退默认，解析先于 Serilog 初始化、警告在建好日志器后补记；新增 App 内部 LoggingBootstrap 承接解析与管道构建）；ToolHost.GetLogger 改用 SourceContext 承载插件 id（Serilog MinimumLevel.Override 按 SourceContext Ordinal 前缀匹配），规范 §7 新增插件禁止 ForContext<T>() 覆盖 SourceContext 的约束；关键路径补 Debug 日志——PluginLoader 扫描/逐 dll/发现实现/加载完成、ToolHost 数据目录分配与日志器创建、Hermes 变量替换始末/HTTP 逐跳（方法·URL·状态码·耗时）/后事件脚本执行始末/设置读写（加载来源：默认·文件·损坏恢复），Hermes 引擎/编排/设置 Store 以可选 ILogger 注入（现有测试构造不变）；架构 §6.2 重写、规范 §7 同步；全部测试 241 项全绿；临时控制台反射调用真实解析代码验证 override 行为（14 项断言全过）+ 真实 App 端到端验证配置生效
+
 ## 1.1.0（2026-08-27）
 
 - 第 12 步「插件加载与外壳修复」完成：PluginAssemblyLoadContext 改非收集（isCollectible: false——项目无插件热卸载需求，可收集上下文存在被 GC 在使用中卸载的风险，是 Hermes 经 Jint 执行脚本时报"context 已 unload"的根因）；PluginCatalog 新增 LoadContexts 持有全部加载上下文引用备诊断；主窗口启动最大化；各插件部署目标补拷 .deps.json（AssemblyDependencyResolver 在部署目录走严格解析路径）；架构 §5.1 同步；全部测试 241 项全绿
