@@ -85,6 +85,9 @@ internal sealed class EnvironmentManagerForm : Form
         _variablesGrid.CellFormatting += VariablesGrid_CellFormatting;
 
         RefreshEnvList();
+
+        // 高 DPI 适配（详见 DpiScale）
+        DpiScale.Apply(this);
     }
 
     /// <summary>窗口关闭后的最新环境数据（供调用方刷新切换下拉）。</summary>

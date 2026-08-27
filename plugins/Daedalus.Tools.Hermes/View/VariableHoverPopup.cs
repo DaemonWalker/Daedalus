@@ -59,6 +59,9 @@ internal sealed class VariableHoverPopup : Form
         // 失焦保存（FR-HERMES-024）
         Deactivate += (_, _) => _ = CommitAndCloseAsync();
         Shown += (_, _) => _valueBox.Focus();
+
+        // 高 DPI 适配（详见 DpiScale）
+        DpiScale.Apply(this);
     }
 
     /// <summary>回车/失焦保存（name, value）；仅可编辑且值变化时触发。</summary>

@@ -42,6 +42,9 @@ internal sealed class CurlImportForm : Form
         Controls.Add(buttonBar);
         AcceptButton = okButton;
         CancelButton = cancelButton;
+
+        // 高 DPI 适配（详见 DpiScale）
+        DpiScale.Apply(this);
     }
 
     /// <summary>用户粘贴的命令文本。</summary>

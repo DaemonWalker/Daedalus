@@ -86,6 +86,9 @@ internal sealed class MainForm : Form
         Controls.Add(_tabs);
         Controls.Add(toolPanel);
         Controls.Add(statusStrip);
+
+        // 高 DPI 适配（详见 DpiScale）
+        DpiScale.Apply(this);
     }
 
     private void OpenSelectedTool(ListBox toolList)
@@ -131,6 +134,10 @@ internal sealed class MainForm : Form
         }
 
         view.Dock = DockStyle.Fill;
+
+        // 高 DPI 适配：宿主对工具视图整体缩放一次（详见 DpiScale；嵌套 UserControl 不自行缩放）
+        DpiScale.Apply(view);
+
         var page = new TabPage(GetTabTitle(tool));
         page.Controls.Add(view);
         _tabs.TabPages.Add(page);

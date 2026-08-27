@@ -48,11 +48,19 @@ internal sealed class RequestEditorPanel : UserControl
         _methodCombo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDown, Width = 90 };
         _methodCombo.Items.AddRange(CommonMethods);
         _methodCombo.Text = "GET";
-        _urlBox = new TextBox { Width = 420, Anchor = AnchorStyles.Left | AnchorStyles.Right };
-        _sendButton = new Button { Text = "发送", Width = 60 };
-        _saveButton = new Button { Text = "保存", Width = 60, Enabled = false };
-        var urlPanel = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(4), WrapContents = false };
-        urlPanel.Controls.AddRange([_methodCombo, _urlBox, _sendButton, _saveButton]);
+        _urlBox = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _sendButton = new Button { Text = "发送", AutoSize = true };
+        _saveButton = new Button { Text = "保存", AutoSize = true, Enabled = false };
+        // 地址栏随窗口拉伸：URL 列占满剩余宽度，方法/按钮列按内容自适应
+        var urlPanel = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 4, Padding = new Padding(4) };
+        urlPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        urlPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        urlPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        urlPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        urlPanel.Controls.Add(_methodCombo, 0, 0);
+        urlPanel.Controls.Add(_urlBox, 1, 0);
+        urlPanel.Controls.Add(_sendButton, 2, 0);
+        urlPanel.Controls.Add(_saveButton, 3, 0);
 
         _paramsGrid = new KeyValueGrid { Dock = DockStyle.Fill };
         _headersGrid = new KeyValueGrid { Dock = DockStyle.Fill };

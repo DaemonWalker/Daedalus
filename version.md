@@ -2,6 +2,10 @@
 
 版本号格式：`大版本.小版本.bug修复`。最新版本在最上方。
 
+## 1.4.1（2026-08-27）
+
+- 修复系统显示缩放（高 DPI）下界面控件裁剪与错位：实测 AutoScaleMode 对手工构建的 Form/UserControl 均不生效，新增 `DpiScale` helper（App 与 Hermes 各一份 internal，避免改引用关系）——顶层窗口与工具视图按 96 DPI 基准显式 `Scale(DeviceDpi/96)` 一次，缩放后递归重置 AutoSize 控件消除双重放大（GrowOnly 需清零重测；TextBox/NumericUpDown 的 AutoSize 只管高度，宽度保留缩放结果）；嵌套 UserControl 不自行缩放、动态创建控件用 Dock/AutoSize，约定入架构 §6.4（docs/ 不入库）；Hermes 地址栏改 TableLayoutPanel 随窗口拉伸、发送/保存按钮改 AutoSize；build.bat 注释转 GBK 编码（cmd 中文正常显示）；全部测试 255 项全绿
+
 ## 1.4.0（2026-08-27）
 
 - 第 15 步「Hermes 布局持久化」完成：HermesSettings 新增可空 `layout` 节（HermesLayout record，主/左/右三个分隔条的**比例**而非像素，向后兼容、Version 保持 1）；HermesPanel 三个 SplitContainer 挂 SplitterMoved（拖动结束）按比例即存（FR-HERMES-061 语义），Load 尺寸就绪后按比例还原并 clamp 到 Panel1MinSize/Panel2MinSize，双守卫防误触发（`_restoringLayout` 拦还原期回写、`_layoutLoaded` 拦初始化布局期 splitter 被动调整）；比例字段独立校验须 ∈ (0,1)，非法按字段缺失处理、不触发 DR-003；多标签页共享 settings.json，"最后一次调整生效"；hermes.md §11.4/§12 同步；Hermes.Tests 新增 13 例（比例换算/clamp/含布局往返/旧版兼容/非法布局不备份）；临时 harness 经 HermesTool 公开入口真实驱动 HermesPanel 验证——调整落盘、换窗口尺寸重开按比例还原、还原不改写文件、非法/旧版数据兼容，13 项断言全过（harness 验证后删除未入库）；全部测试 255 项全绿

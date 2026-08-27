@@ -1,11 +1,11 @@
 @echo off
-rem Daedalus æ„å»ºå…¥å£ï¼ˆbuild.ps1 çš„ cmd åŒ…è£…ï¼‰ã€‚
-rem ç”¨æ³•ï¼šbuild.bat [Debug^|Release] [-Clean]
+rem Daedalus ¹¹½¨Èë¿Ú£¨build.ps1 µÄ cmd °ü×°£©¡£
+rem ÓÃ·¨£ºbuild.bat [Debug^|Release] [-Clean]
 setlocal
 set "CONFIG=%~1"
 if "%CONFIG%"=="" set "CONFIG=Debug"
 if /i not "%CONFIG%"=="Debug" if /i not "%CONFIG%"=="Release" (
-    echo ç”¨æ³•: build.bat [Debug^|Release] [-Clean]
+    echo ÓÃ·¨: build.bat [Debug^|Release] [-Clean]
     exit /b 1
 )
 set "EXTRA="

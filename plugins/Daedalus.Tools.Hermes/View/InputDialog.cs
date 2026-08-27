@@ -25,6 +25,9 @@ internal static class InputDialog
         form.AcceptButton = okButton;
         form.CancelButton = cancelButton;
 
+        // 高 DPI 适配（详见 DpiScale）
+        DpiScale.Apply(form);
+
         if (form.ShowDialog(owner) != DialogResult.OK)
         {
             return null;

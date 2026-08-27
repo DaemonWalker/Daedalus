@@ -84,6 +84,9 @@ internal sealed class HermesSettingsForm : Form
         };
 
         _suppressEvents = false;
+
+        // 高 DPI 适配（详见 DpiScale）
+        DpiScale.Apply(this);
     }
 
     /// <summary>设置变化（已成功组织出新值；持久化异步进行）。忽略证书校验开关需要调用方同步到 HttpClientFactory。</summary>
