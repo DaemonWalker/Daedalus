@@ -24,7 +24,8 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
     private const string NoEnvironmentText = "（未启用）";
 
     private readonly ILogger _logger;
-    private readonly HermesTool _tool;
+    private readonly SendOrchestrator _orchestrator;
+    private readonly HttpClientFactory _clientFactory;
     private readonly CollectionStore _collectionStore;
     private readonly EnvironmentStore _environmentStore;
     private readonly HistoryStore _historyStore;
@@ -62,23 +63,43 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
     // 加载/刷新环境下拉期间抑制事件，避免把未加载完的状态写回 environments.json
     private bool _suppressEvents = true;
 
-    public HermesPanel(IToolHost host, HermesTool tool)
+    /// <summary>
+    /// 构造注入（step 14，hermes.md §4.1）：引擎/编排/Store 等为跨标签共享的 singleton，子面板为 transient。
+    /// 注入的 ILogger 即宿主按插件 id 打好 SourceContext 的实例（不再需要 host.GetLogger）。
+    /// </summary>
+    public HermesPanel(
+        ILogger logger,
+        SendOrchestrator orchestrator,
+        HttpClientFactory clientFactory,
+        CollectionStore collectionStore,
+        EnvironmentStore environmentStore,
+        HistoryStore historyStore,
+        HermesSettingsStore settingsStore,
+        RecentHistoryReader historyReader,
+        HistoryArchive historyArchive,
+        HistorySearch historySearch,
+        ResponseBeautifier beautifier,
+        ScriptHost scriptHost,
+        CollectionPanel collectionPanel,
+        HistoryPanel historyPanel,
+        ResponsePanel responsePanel)
     {
-        ArgumentNullException.ThrowIfNull(host);
-        ArgumentNullException.ThrowIfNull(tool);
-        _tool = tool;
-        _logger = host.GetLogger(HermesTool.ToolId);
-        string dataDirectory = host.GetDataDirectory(HermesTool.ToolId);
-        _collectionStore = new CollectionStore(dataDirectory);
-        _environmentStore = new EnvironmentStore(dataDirectory);
-        _historyStore = new HistoryStore(dataDirectory);
-        _settingsStore = new HermesSettingsStore(dataDirectory, _logger);
-        _historyReader = new RecentHistoryReader(_historyStore);
-        _historyArchive = new HistoryArchive(dataDirectory, _logger);
-        _historySearch = new HistorySearch(dataDirectory, _logger);
-        _beautifier = new ResponseBeautifier(host);
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(orchestrator);
+        ArgumentNullException.ThrowIfNull(clientFactory);
+        _logger = logger;
+        _orchestrator = orchestrator;
+        _clientFactory = clientFactory;
+        _collectionStore = collectionStore;
+        _environmentStore = environmentStore;
+        _historyStore = historyStore;
+        _settingsStore = settingsStore;
+        _historyReader = historyReader;
+        _historyArchive = historyArchive;
+        _historySearch = historySearch;
+        _beautifier = beautifier;
+        _scriptHost = scriptHost;
         _hover = new VariableHoverController(() => _environmentData.FindActive(), SetVariableFromHoverAsync);
-        _scriptHost = new ScriptHost(_environmentStore, _logger);
 
         _envCombo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
         var manageEnvButton = new Button { Text = "管理环境", AutoSize = true };
@@ -95,14 +116,18 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         topBar.Controls.Add(importButton);
         topBar.Controls.Add(settingsButton);
 
-        _collectionPanel = new CollectionPanel { Dock = DockStyle.Fill };
-        _historyPanel = new HistoryPanel { Dock = DockStyle.Fill };
+        // 子面板由容器以 transient 注入；运行时委托（悬浮编辑）与 RequestEditorPanel 保留手工接线
+        _collectionPanel = collectionPanel;
+        _collectionPanel.Dock = DockStyle.Fill;
+        _historyPanel = historyPanel;
+        _historyPanel.Dock = DockStyle.Fill;
         var leftSplit = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
         leftSplit.Panel1.Controls.Add(_collectionPanel);
         leftSplit.Panel2.Controls.Add(_historyPanel);
 
         _editor = new RequestEditorPanel(_hover) { Dock = DockStyle.Fill };
-        _responsePanel = new ResponsePanel { Dock = DockStyle.Fill };
+        _responsePanel = responsePanel;
+        _responsePanel.Dock = DockStyle.Fill;
         var rightSplit = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
         rightSplit.Panel1.Controls.Add(_editor);
         rightSplit.Panel2.Controls.Add(_responsePanel);
@@ -273,7 +298,7 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
             if (ignoreCertificateChanged)
             {
                 // 证书校验开关变化 → 销毁重建双 client（hermes.md §5.2，FR-HERMES-008）
-                _tool.ClientFactory.SetIgnoreServerCertificate(settings.IgnoreServerCertificate);
+                _clientFactory.SetIgnoreServerCertificate(settings.IgnoreServerCertificate);
             }
         };
         form.ArchiveRequested += async (_, _) => await RunManualArchiveAsync(form);
@@ -487,7 +512,7 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
             return;
         }
 
-        PreparedRequest prepared = _tool.Orchestrator.Prepare(draft, _environmentData.FindActive());
+        PreparedRequest prepared = _orchestrator.Prepare(draft, _environmentData.FindActive());
         if (prepared.UndefinedVariables.Count > 0)
         {
             // FR-HERMES-022：未定义变量原样保留并提示
@@ -498,7 +523,7 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         _editor.SetSending(true);
         try
         {
-            SendResult result = await _tool.Orchestrator.SendAsync(prepared, _settings, _sendCts.Token);
+            SendResult result = await _orchestrator.SendAsync(prepared, _settings, _sendCts.Token);
             _logger.Debug("发送完成：状态 {Status}，共 {HopCount} 跳，{HasScript}",
                 result.FinalHop.Response.Status, result.Hops.Count,
                 draft.PostResponseScript is not null ? "有后事件脚本" : "无后事件脚本");
@@ -536,7 +561,7 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
             _statusLabel.Text = status;
 
             // 历史落盘（hermes.md §5.1：只记最终一跳，异步追加）
-            HistoryEntry entry = _tool.Orchestrator.BuildHistoryEntry(prepared, result, DateTimeOffset.Now);
+            HistoryEntry entry = _orchestrator.BuildHistoryEntry(prepared, result, DateTimeOffset.Now);
             await _historyStore.AppendAsync(entry, _settings.ResponseBodyLimitBytes, _sendCts.Token);
             await RefreshHistoryAsync();
         }

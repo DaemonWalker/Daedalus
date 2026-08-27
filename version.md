@@ -2,6 +2,10 @@
 
 版本号格式：`大版本.小版本.bug修复`。最新版本在最上方。
 
+## 1.3.0（2026-08-27）
+
+- 第 14 步「工具 IoC 容器」完成，含用户授权的**破坏性契约变更**：`ITool` 改为 `RegisterServices(IServiceCollection)` + `CreateView(IToolHost, IServiceProvider)`（IFormatter 不变，全部第一方实现与 Hosting 测试桩同步适配）。Abstractions 新增 Microsoft.Extensions.DependencyInjection.Abstractions、App 新增 Microsoft.Extensions.DependencyInjection（版本入中央包管理，Abstractions 包列入插件 ALC SharedAssemblies 保证宿主/插件类型同一性）；App 组合根新增 ToolContainerRegistry——每工具独立 ServiceProvider，以实例形式预置 IToolHost 与按插件 id 打好 SourceContext 的 ILogger，单个工具注册/构建失败记日志+失败清单不中断其余，打开时按打开失败提示；生命周期约定落地——跨标签共享服务 singleton（Hermes 引擎/编排/工厂/各 Store，承接原懒加载字段的"浏览器会话"语义）、视图树 transient（CreateView 开 scope、面板 Disposed 释放 scope）、对话框不注册；HermesPanel/ProteusPanel 改构造注入（ILogger 直接注入即带插件上下文，替代 host.GetLogger 调用）；架构 §4/§6.0、hermes.md §4.1、proteus.md §4.1 同步；全部测试 241 项全绿；真实 App 启动冒烟（0 插件失败/0 容器失败）+ 独立冒烟工程经 PluginLoader ALC 加载部署产物验证：双"标签页"实例独立、HttpEngine 跨 scope 同实例、关闭后重开正常、回环真实发送 200、JSON 美化正确、日志含 hermes SourceContext
+
 ## 1.2.0（2026-08-27）
 
 - 第 13 步「日志配置化」完成：程序目录 daedalus.json 支持日志级别配置（logging.default + logging.overrides 按插件 id 提级，文件缺失用默认 Information、JSON 损坏/级别不识记 Warning 并回退默认，解析先于 Serilog 初始化、警告在建好日志器后补记；新增 App 内部 LoggingBootstrap 承接解析与管道构建）；ToolHost.GetLogger 改用 SourceContext 承载插件 id（Serilog MinimumLevel.Override 按 SourceContext Ordinal 前缀匹配），规范 §7 新增插件禁止 ForContext<T>() 覆盖 SourceContext 的约束；关键路径补 Debug 日志——PluginLoader 扫描/逐 dll/发现实现/加载完成、ToolHost 数据目录分配与日志器创建、Hermes 变量替换始末/HTTP 逐跳（方法·URL·状态码·耗时）/后事件脚本执行始末/设置读写（加载来源：默认·文件·损坏恢复），Hermes 引擎/编排/设置 Store 以可选 ILogger 注入（现有测试构造不变）；架构 §6.2 重写、规范 §7 同步；全部测试 241 项全绿；临时控制台反射调用真实解析代码验证 override 行为（14 项断言全过）+ 真实 App 端到端验证配置生效

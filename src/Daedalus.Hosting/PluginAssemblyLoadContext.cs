@@ -16,6 +16,8 @@ internal sealed class PluginAssemblyLoadContext : AssemblyLoadContext
     {
         "Daedalus.Abstractions",
         "Serilog",
+        // ITool 契约签名使用 IServiceCollection/IServiceProvider，宿主与插件必须共享同一份类型
+        "Microsoft.Extensions.DependencyInjection.Abstractions",
     };
 
     private readonly AssemblyDependencyResolver _resolver;

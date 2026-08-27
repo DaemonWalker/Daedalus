@@ -5,7 +5,7 @@ using Serilog;
 
 namespace Daedalus.App;
 
-/// <summary>组合根（架构 §6）：手工组合 Serilog、PluginLoader、ToolHost 与主窗口，不使用 DI 容器。</summary>
+/// <summary>组合根（架构 §6）：创建 Serilog、PluginLoader、ToolHost、每工具独立 ServiceProvider 与主窗口。</summary>
 internal static class Program
 {
     [STAThread]
@@ -36,17 +36,21 @@ internal static class Program
             PluginCatalog catalog = loader.LoadFromDirectory(Path.Combine(baseDirectory, "plugins"));
             var host = new ToolHost(baseDirectory, Log.Logger, catalog.Formatters);
 
+            // 每工具独立 ServiceProvider（架构 §6，step 14）：失败隔离，不中断其他工具
+            ToolContainerRegistry containers = ToolContainerRegistry.Build(catalog.Tools, host, Log.Logger);
+
             Log.Information(
-                "启动完成：加载 {ToolCount} 个工具、{FormatterCount} 个格式化器，{FailureCount} 个插件加载失败",
+                "启动完成：加载 {ToolCount} 个工具、{FormatterCount} 个格式化器，{FailureCount} 个插件加载失败，{ContainerFailureCount} 个工具容器构建失败",
                 catalog.Tools.Count,
                 catalog.Formatters.Count,
-                catalog.Failures.Count);
+                catalog.Failures.Count,
+                containers.Failures.Count);
             foreach (ITool tool in catalog.Tools)
             {
                 Log.Information("已加载工具 {ToolId}（{DisplayName} {Version}）", tool.Metadata.Id, tool.Metadata.DisplayName, tool.Metadata.Version);
             }
 
-            Application.Run(new MainForm(catalog, host, Log.Logger));
+            Application.Run(new MainForm(catalog, host, containers, Log.Logger));
         }
         catch (Exception ex)
         {

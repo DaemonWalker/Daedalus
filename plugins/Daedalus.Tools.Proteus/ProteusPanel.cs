@@ -42,11 +42,18 @@ internal sealed class ProteusPanel : UserControl
     private bool _suppressEvents = true;
     private ProteusSettings _settings = ProteusSettings.Default;
 
-    public ProteusPanel(IToolHost host)
+    /// <summary>
+    /// 构造注入（step 14，proteus.md §4.1）：ILogger 为宿主按插件 id 打好 SourceContext 的实例，
+    /// 设置 Store 与宿主服务由容器注入。
+    /// </summary>
+    public ProteusPanel(IToolHost host, ILogger logger, ProteusSettingsStore settingsStore)
     {
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(settingsStore);
         _host = host;
-        _logger = host.GetLogger(ProteusTool.ToolId);
-        _settingsStore = new ProteusSettingsStore(host.GetDataDirectory(ProteusTool.ToolId));
+        _logger = logger;
+        _settingsStore = settingsStore;
 
         _formatCombo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, DisplayMember = nameof(IFormatter.DisplayName) };
         _indentCombo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };

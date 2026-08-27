@@ -10,6 +10,9 @@
     <!-- 日志（架构 §6.2/§6.3） -->
     <PackageVersion Include="Serilog" Version="4.3.0" />
     <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
+    <!-- 工具 IoC 容器（架构 §6，step 14；Abstractions 用 Abstractions 包，App 用完整实现） -->
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
     <!-- Hermes 后事件脚本引擎 -->
     <PackageVersion Include="Jint" Version="4.4.0" />
     <!-- Proteus 高亮编辑器（插件私有依赖）：nuget.org 上的 FastColoredTextBox(1.0.0)/FCTB(2.16.24)

@@ -16,19 +16,22 @@ internal sealed class MainForm : Form
 
     private readonly PluginCatalog _catalog;
     private readonly IToolHost _host;
+    private readonly ToolContainerRegistry _containers;
     private readonly ILogger _logger;
     private readonly TabControl _tabs;
 
     // 各标签页 × 按钮的命中区域，在 OwnerDraw 时计算；标签页增删后索引位移，需清空重算
     private readonly Dictionary<int, Rectangle> _closeButtonBounds = [];
 
-    public MainForm(PluginCatalog catalog, IToolHost host, ILogger logger)
+    public MainForm(PluginCatalog catalog, IToolHost host, ToolContainerRegistry containers, ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(containers);
         ArgumentNullException.ThrowIfNull(logger);
         _catalog = catalog;
         _host = host;
+        _containers = containers;
         _logger = logger;
 
         Text = "Daedalus";
@@ -93,10 +96,26 @@ internal sealed class MainForm : Form
         }
 
         ITool tool = item.Tool;
+
+        // 容器构建失败的工具仍在列表中可见，打开时按打开失败处理（提示与 CreateView 异常路径一致）
+        IServiceProvider? services = _containers.Find(tool);
+        if (services is null)
+        {
+            ToolContainerFailure? failure = _containers.Failures.FirstOrDefault(f => f.ToolId == tool.Metadata.Id);
+            _logger.Error("工具 {ToolId} 的服务容器不可用（注册/构建失败），无法打开", tool.Metadata.Id);
+            MessageBox.Show(
+                this,
+                $"打开工具「{tool.Metadata.DisplayName}」失败：服务容器构建失败（{failure?.Exception.Message ?? "未知原因"}），详见日志。",
+                Text,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return;
+        }
+
         Control view;
         try
         {
-            view = tool.CreateView(_host);
+            view = tool.CreateView(_host, services);
         }
         catch (Exception ex)
         {

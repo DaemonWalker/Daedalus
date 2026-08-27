@@ -10,6 +10,8 @@
     <!-- 组合根直接配置 Serilog 滚动文件管道（NFR-001） -->
     <PackageReference Include="Serilog" />
     <PackageReference Include="Serilog.Sinks.File" />
+    <!-- 每工具独立 ServiceProvider 的实现（step 14 经用户批准；Hosting 不引用，容器构建在 App 组合根） -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
   </ItemGroup>
 
   <ItemGroup>
