@@ -2,6 +2,10 @@
 
 版本号格式：`大版本.小版本.bug修复`。最新版本在最上方。
 
+## 1.4.0（2026-08-27）
+
+- 第 15 步「Hermes 布局持久化」完成：HermesSettings 新增可空 `layout` 节（HermesLayout record，主/左/右三个分隔条的**比例**而非像素，向后兼容、Version 保持 1）；HermesPanel 三个 SplitContainer 挂 SplitterMoved（拖动结束）按比例即存（FR-HERMES-061 语义），Load 尺寸就绪后按比例还原并 clamp 到 Panel1MinSize/Panel2MinSize，双守卫防误触发（`_restoringLayout` 拦还原期回写、`_layoutLoaded` 拦初始化布局期 splitter 被动调整）；比例字段独立校验须 ∈ (0,1)，非法按字段缺失处理、不触发 DR-003；多标签页共享 settings.json，"最后一次调整生效"；hermes.md §11.4/§12 同步；Hermes.Tests 新增 13 例（比例换算/clamp/含布局往返/旧版兼容/非法布局不备份）；临时 harness 经 HermesTool 公开入口真实驱动 HermesPanel 验证——调整落盘、换窗口尺寸重开按比例还原、还原不改写文件、非法/旧版数据兼容，13 项断言全过（harness 验证后删除未入库）；全部测试 255 项全绿
+
 ## 1.3.0（2026-08-27）
 
 - 第 14 步「工具 IoC 容器」完成，含用户授权的**破坏性契约变更**：`ITool` 改为 `RegisterServices(IServiceCollection)` + `CreateView(IToolHost, IServiceProvider)`（IFormatter 不变，全部第一方实现与 Hosting 测试桩同步适配）。Abstractions 新增 Microsoft.Extensions.DependencyInjection.Abstractions、App 新增 Microsoft.Extensions.DependencyInjection（版本入中央包管理，Abstractions 包列入插件 ALC SharedAssemblies 保证宿主/插件类型同一性）；App 组合根新增 ToolContainerRegistry——每工具独立 ServiceProvider，以实例形式预置 IToolHost 与按插件 id 打好 SourceContext 的 ILogger，单个工具注册/构建失败记日志+失败清单不中断其余，打开时按打开失败提示；生命周期约定落地——跨标签共享服务 singleton（Hermes 引擎/编排/工厂/各 Store，承接原懒加载字段的"浏览器会话"语义）、视图树 transient（CreateView 开 scope、面板 Disposed 释放 scope）、对话框不注册；HermesPanel/ProteusPanel 改构造注入（ILogger 直接注入即带插件上下文，替代 host.GetLogger 调用）；架构 §4/§6.0、hermes.md §4.1、proteus.md §4.1 同步；全部测试 241 项全绿；真实 App 启动冒烟（0 插件失败/0 容器失败）+ 独立冒烟工程经 PluginLoader ALC 加载部署产物验证：双"标签页"实例独立、HttpEngine 跨 scope 同实例、关闭后重开正常、回环真实发送 200、JSON 美化正确、日志含 hermes SourceContext

@@ -45,9 +45,19 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
     private readonly RequestEditorPanel _editor;
     private readonly ResponsePanel _responsePanel;
     private readonly ToolStripStatusLabel _statusLabel;
+    private readonly SplitContainer _mainSplit;
+    private readonly SplitContainer _leftSplit;
+    private readonly SplitContainer _rightSplit;
 
     private HermesSettings _settings = HermesSettings.Default;
     private EnvironmentData _environmentData = EnvironmentData.Empty;
+
+    // 程序还原布局期间抑制 SplitterMoved 落盘，避免刚读出的比例被立即覆盖回写
+    private bool _restoringLayout;
+
+    // Load 完成（布局还原结束）后才允许 SplitterMoved 落盘：初始化布局期间 splitter 位置被动调整
+    // 也会触发 SplitterMoved，不拦住会把默认布局覆盖写回刚读出的比例
+    private bool _layoutLoaded;
 
     // 发送状态：非 null 表示正在发送（发送按钮此时为"取消"）
     private CancellationTokenSource? _sendCts;
@@ -121,32 +131,35 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         _collectionPanel.Dock = DockStyle.Fill;
         _historyPanel = historyPanel;
         _historyPanel.Dock = DockStyle.Fill;
-        var leftSplit = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
-        leftSplit.Panel1.Controls.Add(_collectionPanel);
-        leftSplit.Panel2.Controls.Add(_historyPanel);
+        _leftSplit = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
+        _leftSplit.Panel1.Controls.Add(_collectionPanel);
+        _leftSplit.Panel2.Controls.Add(_historyPanel);
 
         _editor = new RequestEditorPanel(_hover) { Dock = DockStyle.Fill };
         _responsePanel = responsePanel;
         _responsePanel.Dock = DockStyle.Fill;
-        var rightSplit = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
-        rightSplit.Panel1.Controls.Add(_editor);
-        rightSplit.Panel2.Controls.Add(_responsePanel);
+        _rightSplit = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
+        _rightSplit.Panel1.Controls.Add(_editor);
+        _rightSplit.Panel2.Controls.Add(_responsePanel);
 
-        var mainSplit = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Vertical, SplitterDistance = 260 };
-        mainSplit.Panel1.Controls.Add(leftSplit);
-        mainSplit.Panel2.Controls.Add(rightSplit);
+        _mainSplit = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Vertical, SplitterDistance = 260 };
+        _mainSplit.Panel1.Controls.Add(_leftSplit);
+        _mainSplit.Panel2.Controls.Add(_rightSplit);
 
         _statusLabel = new ToolStripStatusLabel { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
         var statusStrip = new StatusStrip();
         statusStrip.Items.Add(_statusLabel);
 
-        Controls.Add(mainSplit);
+        Controls.Add(_mainSplit);
         Controls.Add(topBar);
         Controls.Add(statusStrip);
 
         _envCombo.SelectedIndexChanged += async (_, _) => await ActiveEnvironmentChangedAsync();
         manageEnvButton.Click += (_, _) => OpenEnvironmentManager();
         settingsButton.Click += (_, _) => OpenSettings();
+        _mainSplit.SplitterMoved += async (_, _) => await SaveLayoutAsync();
+        _leftSplit.SplitterMoved += async (_, _) => await SaveLayoutAsync();
+        _rightSplit.SplitterMoved += async (_, _) => await SaveLayoutAsync();
         _collectionPanel.RequestOpened += CollectionPanel_RequestOpened;
         _collectionPanel.CollectionsChanged += async (_, affected) => await SaveCollectionsAsync(affected);
         _collectionPanel.CollectionDeleteRequested += async (_, collection) => await DeleteCollectionAsync(collection);
@@ -196,6 +209,12 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
                 _statusLabel.Text = "设置文件损坏，已备份原文件并以默认设置启动";
             }
 
+            // Load 事件在控件首次显示时触发，此时分隔条尺寸已确定，可以安全设置 SplitterDistance
+            if (_settings.Layout is { } layout)
+            {
+                ApplyLayout(layout);
+            }
+
             EnvironmentLoadResult environmentResult = await _environmentStore.LoadAsync();
             _environmentData = environmentResult.Data;
             if (environmentResult.RecoveredFromCorruption)
@@ -226,6 +245,68 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         {
             RefreshEnvironmentCombo();
             _suppressEvents = false;
+            _layoutLoaded = true;
+        }
+    }
+
+    // ---------- 布局持久化（hermes.md §11.4，FR-HERMES-061） ----------
+
+    /// <summary>按比例还原三个分隔条；每个字段独立校验 ∈ (0,1)，非法字段按缺失处理（保留默认布局）。</summary>
+    private void ApplyLayout(HermesLayout layout)
+    {
+        _restoringLayout = true;
+        try
+        {
+            ApplyRatio(_mainSplit, layout.MainRatio);
+            ApplyRatio(_leftSplit, layout.LeftRatio);
+            ApplyRatio(_rightSplit, layout.RightRatio);
+        }
+        finally
+        {
+            _restoringLayout = false;
+        }
+    }
+
+    /// <summary>尺寸未就绪（Horizontal 分隔条在高度为 0 时设 SplitterDistance 会抛异常）或比例非法时跳过。</summary>
+    private static void ApplyRatio(SplitContainer split, double ratio)
+    {
+        int totalSize = split.Orientation == Orientation.Vertical ? split.Width : split.Height;
+        if (!HermesLayout.IsValidRatio(ratio) || totalSize <= 0)
+        {
+            return;
+        }
+
+        split.SplitterDistance = HermesLayout.RatioToDistance(
+            ratio, totalSize, split.Panel1MinSize, split.Panel2MinSize, split.SplitterWidth);
+    }
+
+    /// <summary>SplitterMoved（拖动结束）时按比例落盘；还原过程由 _restoringLayout 抑制，不回写。</summary>
+    private async Task SaveLayoutAsync()
+    {
+        if (_restoringLayout || !_layoutLoaded)
+        {
+            return;
+        }
+
+        // 尺寸未就绪时不存（比例会算成 0/非法值）
+        if (_mainSplit.Width <= 0 || _leftSplit.Height <= 0 || _rightSplit.Height <= 0)
+        {
+            return;
+        }
+
+        var layout = new HermesLayout(
+            HermesLayout.DistanceToRatio(_mainSplit.SplitterDistance, _mainSplit.Width),
+            HermesLayout.DistanceToRatio(_leftSplit.SplitterDistance, _leftSplit.Height),
+            HermesLayout.DistanceToRatio(_rightSplit.SplitterDistance, _rightSplit.Height));
+        _settings = _settings with { Layout = layout };
+        try
+        {
+            await _settingsStore.SaveAsync(_settings);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "保存布局失败");
+            _statusLabel.Text = $"布局保存失败：{ex.Message}";
         }
     }
 

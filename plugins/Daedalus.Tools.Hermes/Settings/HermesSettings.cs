@@ -17,6 +17,12 @@ public sealed record HermesSettings(
     int ScriptTimeoutMs,
     long ResponseBodyLimitBytes)
 {
+    /// <summary>
+    /// 分隔条布局比例（step 15）；null 表示使用代码默认布局。
+    /// 旧版设置文件无此属性，反序列化为 null，向后兼容，Version 保持 1。
+    /// </summary>
+    public HermesLayout? Layout { get; init; }
+
     /// <summary>当前设置文件格式版本。</summary>
     public const int CurrentVersion = 1;
 

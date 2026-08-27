@@ -73,6 +73,52 @@ public sealed class HermesSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveAsync再LoadAsync_含布局比例_往返一致()
+    {
+        var store = new HermesSettingsStore(_directory);
+        var settings = HermesSettings.Default with { Layout = new HermesLayout(0.3, 0.55, 0.62) };
+
+        await store.SaveAsync(settings);
+        HermesSettingsLoadResult result = await store.LoadAsync();
+
+        Assert.Equal(settings, result.Settings);
+        Assert.False(result.RecoveredFromCorruption);
+    }
+
+    [Fact]
+    public async Task LoadAsync_旧版文件无布局属性_正常读取且布局为null()
+    {
+        var store = new HermesSettingsStore(_directory);
+        string filePath = Path.Combine(_directory, "settings.json");
+        await File.WriteAllTextAsync(filePath,
+            """{"version": 1, "followRedirects": false, "useCookies": true, "ignoreServerCertificate": false, "scriptMemoryLimitBytes": 4194304, "scriptTimeoutMs": 2000, "responseBodyLimitBytes": 10485760}""");
+
+        HermesSettingsLoadResult result = await store.LoadAsync();
+
+        Assert.False(result.RecoveredFromCorruption);
+        Assert.Null(result.Settings.Layout);
+        Assert.False(result.Settings.FollowRedirects);
+    }
+
+    [Fact]
+    public async Task LoadAsync_布局比例非法_不触发损坏备份恢复()
+    {
+        var store = new HermesSettingsStore(_directory);
+        string filePath = Path.Combine(_directory, "settings.json");
+        await File.WriteAllTextAsync(filePath,
+            """{"version": 1, "followRedirects": true, "useCookies": true, "ignoreServerCertificate": false, "scriptMemoryLimitBytes": 4194304, "scriptTimeoutMs": 2000, "responseBodyLimitBytes": 10485760, "layout": {"mainRatio": 1.5, "leftRatio": 0, "rightRatio": 0.5}}""");
+
+        HermesSettingsLoadResult result = await store.LoadAsync();
+
+        // 布局不是关键数据：非法比例由应用处按字段缺失处理，整个文件不走 DR-003
+        Assert.False(result.RecoveredFromCorruption);
+        Assert.NotNull(result.Settings.Layout);
+        Assert.False(HermesLayout.IsValidRatio(result.Settings.Layout.MainRatio));
+        Assert.False(HermesLayout.IsValidRatio(result.Settings.Layout.LeftRatio));
+        Assert.True(HermesLayout.IsValidRatio(result.Settings.Layout.RightRatio));
+    }
+
+    [Fact]
     public async Task LoadAsync_含未知字段_忽略并正常读取()
     {
         var store = new HermesSettingsStore(_directory);
