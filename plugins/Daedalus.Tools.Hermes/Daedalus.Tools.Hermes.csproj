@@ -32,6 +32,8 @@
     <ItemGroup>
       <PluginArtifacts Include="$(TargetPath)" />
       <PluginArtifacts Include="$(TargetDir)$(TargetName).pdb" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+      <!-- deps.json 让 AssemblyDependencyResolver 在部署目录能走严格解析路径 -->
+      <PluginArtifacts Include="$(TargetDir)$(TargetName).deps.json" Condition="Exists('$(TargetDir)$(TargetName).deps.json')" />
       <PluginArtifacts Include="$(TargetDir)FastColoredTextBox.dll" Condition="Exists('$(TargetDir)FastColoredTextBox.dll')" />
       <PluginArtifacts Include="$(TargetDir)FastColoredTextBox.pdb" Condition="Exists('$(TargetDir)FastColoredTextBox.pdb')" />
       <PluginArtifacts Include="$(TargetDir)Jint.dll" Condition="Exists('$(TargetDir)Jint.dll')" />

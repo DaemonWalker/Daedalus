@@ -34,6 +34,7 @@ internal sealed class MainForm : Form
         Text = "Daedalus";
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(1024, 768);
+        WindowState = FormWindowState.Maximized;
 
         _tabs = new TabControl
         {

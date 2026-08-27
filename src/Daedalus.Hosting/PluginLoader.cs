@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.Loader;
 
 using Daedalus.Abstractions;
 
@@ -7,9 +8,10 @@ using Serilog;
 namespace Daedalus.Hosting;
 
 /// <summary>
-/// 插件加载器（架构 §5.1）：扫描插件目录下平铺的 *.dll（不递归子目录），逐个装入独立可收集的
+/// 插件加载器（架构 §5.1）：扫描插件目录下平铺的 *.dll（不递归子目录），逐个装入独立非收集的
 /// <see cref="PluginAssemblyLoadContext"/>，反射查找 <see cref="ITool"/> / <see cref="IFormatter"/>
 /// 的公开实现。单个 dll 失败记入失败清单并继续加载其余插件（FR-SHELL-004）。
+/// 成功创建的加载上下文全部收集进 <see cref="PluginCatalog"/>，供诊断/排查用。
 /// </summary>
 public sealed class PluginLoader
 {
@@ -30,10 +32,11 @@ public sealed class PluginLoader
         var tools = new List<ITool>();
         var formatters = new List<IFormatter>();
         var failures = new List<PluginLoadFailure>();
+        var loadContexts = new List<AssemblyLoadContext>();
 
         if (!Directory.Exists(pluginsDirectory))
         {
-            return new PluginCatalog(tools, formatters, failures);
+            return new PluginCatalog(tools, formatters, failures, loadContexts);
         }
 
         foreach (string dllPath in Directory.EnumerateFiles(pluginsDirectory, "*.dll", SearchOption.TopDirectoryOnly))
@@ -41,7 +44,7 @@ public sealed class PluginLoader
             string dllName = Path.GetFileName(dllPath);
             try
             {
-                LoadPlugin(dllPath, tools, formatters);
+                loadContexts.Add(LoadPlugin(dllPath, tools, formatters));
             }
             catch (Exception ex)
             {
@@ -52,10 +55,10 @@ public sealed class PluginLoader
             }
         }
 
-        return new PluginCatalog(tools, formatters, failures);
+        return new PluginCatalog(tools, formatters, failures, loadContexts);
     }
 
-    private static void LoadPlugin(string dllPath, List<ITool> tools, List<IFormatter> formatters)
+    private static PluginAssemblyLoadContext LoadPlugin(string dllPath, List<ITool> tools, List<IFormatter> formatters)
     {
         var context = new PluginAssemblyLoadContext(dllPath);
 
@@ -82,5 +85,7 @@ public sealed class PluginLoader
                 formatters.Add(formatter);
             }
         }
+
+        return context;
     }
 }

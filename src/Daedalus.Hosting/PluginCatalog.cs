@@ -1,12 +1,15 @@
+using System.Runtime.Loader;
+
 using Daedalus.Abstractions;
 
 namespace Daedalus.Hosting;
 
-/// <summary>插件加载结果（架构 §5.1）：工具表、格式化器表与失败清单，交给 App 使用。</summary>
+/// <summary>插件加载结果（架构 §5.1）：工具表、格式化器表、失败清单与加载上下文表，交给 App 使用。</summary>
 public sealed class PluginCatalog(
     IReadOnlyList<ITool> tools,
     IReadOnlyList<IFormatter> formatters,
-    IReadOnlyList<PluginLoadFailure> failures)
+    IReadOnlyList<PluginLoadFailure> failures,
+    IReadOnlyList<AssemblyLoadContext> loadContexts)
 {
     /// <summary>已加载的工具插件表。</summary>
     public IReadOnlyList<ITool> Tools { get; } = tools;
@@ -16,4 +19,7 @@ public sealed class PluginCatalog(
 
     /// <summary>加载失败的 dll 清单（dll 名 + 异常），单个失败不中断其余插件加载。</summary>
     public IReadOnlyList<PluginLoadFailure> Failures { get; } = failures;
+
+    /// <summary>全部成功创建的插件加载上下文，供诊断/排查用（每个上下文对应一个成功加载的插件 dll）。</summary>
+    public IReadOnlyList<AssemblyLoadContext> LoadContexts { get; } = loadContexts;
 }

@@ -4,7 +4,9 @@ using System.Runtime.Loader;
 namespace Daedalus.Hosting;
 
 /// <summary>
-/// 单个插件 dll 的程序集加载上下文（架构 §5.1）：可收集。
+/// 单个插件 dll 的程序集加载上下文（架构 §5.1）：非收集。
+/// 项目无插件热卸载需求；可收集上下文存在被 GC 在使用中卸载的风险
+/// （Hermes 经 Jint 执行脚本时报"context 已 unload"的根因），故固定为非收集。
 /// 契约程序集与共享日志库回落到宿主默认上下文解析，保证插件与宿主之间的类型同一性
 /// （否则插件加载出第二份 Daedalus.Abstractions，ITool 将无法转换回宿主侧类型）。
 /// </summary>
@@ -19,7 +21,7 @@ internal sealed class PluginAssemblyLoadContext : AssemblyLoadContext
     private readonly AssemblyDependencyResolver _resolver;
 
     public PluginAssemblyLoadContext(string pluginMainAssemblyPath)
-        : base(isCollectible: true)
+        : base(isCollectible: false)
     {
         _resolver = new AssemblyDependencyResolver(pluginMainAssemblyPath);
     }

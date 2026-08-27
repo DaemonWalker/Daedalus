@@ -2,6 +2,10 @@
 
 版本号格式：`大版本.小版本.bug修复`。最新版本在最上方。
 
+## 1.1.0（2026-08-27）
+
+- 第 12 步「插件加载与外壳修复」完成：PluginAssemblyLoadContext 改非收集（isCollectible: false——项目无插件热卸载需求，可收集上下文存在被 GC 在使用中卸载的风险，是 Hermes 经 Jint 执行脚本时报"context 已 unload"的根因）；PluginCatalog 新增 LoadContexts 持有全部加载上下文引用备诊断；主窗口启动最大化；各插件部署目标补拷 .deps.json（AssemblyDependencyResolver 在部署目录走严格解析路径）；架构 §5.1 同步；全部测试 241 项全绿
+
 ## 1.0.1（2026-08-27）
 
 - 新增构建脚本 `build.ps1` / `build.bat`（cmd 包装）：一键编译整个解决方案（src + plugins + tests），支持 Debug/Release 与 `-Clean`，构建后插件自动部署到 App 输出目录 plugins/
