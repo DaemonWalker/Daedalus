@@ -2,6 +2,10 @@
 
 版本号格式：`大版本.小版本.bug修复`。最新版本在最上方。
 
+## 1.5.0（2026-08-27）
+
+- 第 16 步「Cadmus 编码工具」完成：新增编码工具插件 Cadmus（卡德摩斯，id `daedalus.tools.cadmus`，显示名「Cadmus 编码」）——支持 Base64（UTF-8 字节序列 `Convert.ToBase64String`）与 URL（`Uri.EscapeDataString`）编码（FR-CADMUS-002）；界面为方式下拉（DropDownList）+ 编码/清空/复制输出 + SplitContainer 左右多行 TextBox（输入可编辑/输出只读）+ StatusStrip（FR-CADMUS-001）；settings.json（`{ "version": 1, "lastEncoding": "base64" }`）记住上次编码方式、启动恢复（FR-CADMUS-003），DR-003 损坏备份恢复，字段缺失/未知 id 容忍回落默认。纯 BCL 实现不新增第三方依赖（普通 TextBox，不引 FastColoredTextBox）；CadmusOperations 非 UI 可测（方式清单、错误收敛为状态文本、初始方式解析），CadmusTool/CadmusPanel 走架构 §6.0 注册范式（transient + scope 随标签页生灭）。Cadmus.Tests 18 例（编码向量/设置往返/DR-003/Tool 冒烟）；文档同步——新建 cadmus.md，requirements §1/§5.5、architecture §2/§6.1/§7、coding-style §2.1、plan README；全部测试 273 项全绿
+
 ## 1.4.1（2026-08-27）
 
 - 修复系统显示缩放（高 DPI）下界面控件裁剪与错位：实测 AutoScaleMode 对手工构建的 Form/UserControl 均不生效，新增 `DpiScale` helper（App 与 Hermes 各一份 internal，避免改引用关系）——顶层窗口与工具视图按 96 DPI 基准显式 `Scale(DeviceDpi/96)` 一次，缩放后递归重置 AutoSize 控件消除双重放大（GrowOnly 需清零重测；TextBox/NumericUpDown 的 AutoSize 只管高度，宽度保留缩放结果）；嵌套 UserControl 不自行缩放、动态创建控件用 Dock/AutoSize，约定入架构 §6.4（docs/ 不入库）；Hermes 地址栏改 TableLayoutPanel 随窗口拉伸、发送/保存按钮改 AutoSize；build.bat 注释转 GBK 编码（cmd 中文正常显示）；全部测试 255 项全绿
