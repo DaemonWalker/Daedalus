@@ -73,4 +73,50 @@ public sealed class RecentHistoryReaderTests : IDisposable
 
         Assert.Empty(await reader.ReadRecentAsync(7));
     }
+
+    [Fact]
+    public async Task FindLatest_方法与URL匹配_返回最近一次()
+    {
+        var store = new HistoryStore(_dataDirectory);
+        DateTimeOffset today = DateTimeOffset.Now;
+        await AppendAsync(store,
+            CreateEntry(today.AddDays(-1), "http://a/x"),
+            CreateEntry(today.AddHours(-2), "http://a/x"),
+            CreateEntry(today, "http://a/other"),
+            CreateEntry(today, "http://a/x"));
+
+        var reader = new RecentHistoryReader(store);
+
+        HistoryEntry? latest = await reader.FindLatestAsync("GET", "http://a/x");
+
+        Assert.NotNull(latest);
+        Assert.Equal(today.Date, latest.Timestamp.Date);
+        Assert.Equal("http://a/x", latest.Request.Url);
+    }
+
+    [Fact]
+    public async Task FindLatest_方法不区分大小写_URL精确匹配()
+    {
+        var store = new HistoryStore(_dataDirectory);
+        await AppendAsync(store, CreateEntry(DateTimeOffset.Now, "http://a/x"));
+
+        var reader = new RecentHistoryReader(store);
+
+        Assert.NotNull(await reader.FindLatestAsync("get", "http://a/x"));
+        Assert.Null(await reader.FindLatestAsync("GET", "http://a/X"));
+        Assert.Null(await reader.FindLatestAsync("POST", "http://a/x"));
+    }
+
+    [Fact]
+    public async Task FindLatest_窗口内无匹配_返回null()
+    {
+        var store = new HistoryStore(_dataDirectory);
+        DateTimeOffset today = DateTimeOffset.Now;
+        await AppendAsync(store, CreateEntry(today.AddDays(-10), "http://a/old"));
+
+        var reader = new RecentHistoryReader(store);
+
+        Assert.Null(await reader.FindLatestAsync("GET", "http://a/old", days: 3));
+        Assert.Null(await reader.FindLatestAsync("GET", "http://a/none"));
+    }
 }

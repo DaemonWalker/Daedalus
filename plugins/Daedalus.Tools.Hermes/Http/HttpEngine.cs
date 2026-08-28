@@ -53,7 +53,7 @@ public sealed class HttpEngine(HttpClientFactory clientFactory, ILogger? logger 
             {
                 var stopwatch = Stopwatch.StartNew();
                 using HttpResponseMessage response = await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-                string responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                string responseBody = await ResponseBodyDecoder.DecodeAsync(response.Content, cancellationToken).ConfigureAwait(false);
                 stopwatch.Stop();
 
                 hops.Add(new ResponseHop(
@@ -129,11 +129,29 @@ public sealed class HttpEngine(HttpClientFactory clientFactory, ILogger? logger 
         var message = new HttpRequestMessage(new HttpMethod(method), url);
         message.Content = BuildContent(body, out bodyText);
 
-        foreach (KeyValueEntry header in headers)
+        // 同名键以最下方（最后出现）的启用项为准：先找出每个键的生效位置，非生效位置的同名项跳过
+        var effectiveIndexByKey = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < headers.Count; i++)
         {
-            if (!header.Enabled)
+            if (headers[i].Enabled)
+            {
+                effectiveIndexByKey[headers[i].Key] = i;
+            }
+        }
+
+        for (int i = 0; i < headers.Count; i++)
+        {
+            KeyValueEntry header = headers[i];
+            if (!header.Enabled || effectiveIndexByKey[header.Key] != i)
             {
                 continue;
+            }
+
+            // 显式 Content-Type 头覆盖请求体自带值（StringContent 默认 text/plain 或 body.ContentType）：
+            // 先移除再添加，否则同名单值头会出现两个值（如 "application/json;utf-8, application/json"）
+            if (message.Content is not null && header.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase))
+            {
+                message.Content.Headers.Remove("Content-Type");
             }
 
             // 内容头（如 Content-Type）按 HTTP 规范只能挂在 Content 上，请求头添加失败时落到内容头

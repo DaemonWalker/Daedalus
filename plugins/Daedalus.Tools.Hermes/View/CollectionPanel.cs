@@ -179,6 +179,8 @@ internal sealed class CollectionPanel : UserControl
             Type = type,
             Name = name,
             Items = type == CollectionNodeType.Folder ? [] : null,
+            // 新建请求预填默认请求头（Accept/User-Agent 等），可在 Headers 页编辑或停用
+            Headers = type == CollectionNodeType.Request ? [.. Editing.RequestDraft.DefaultHeaders] : null,
         };
         siblings.Add(node);
         TreeNode treeNode = parentTreeNode.Nodes.Add(name);

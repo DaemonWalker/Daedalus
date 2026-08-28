@@ -348,4 +348,74 @@ public sealed class HttpEngineTests
 
         Assert.Equal("PURGE", handlers[0].Requests[0].Method);
     }
+
+    [Fact]
+    public async Task SendAsync_显式ContentType头_覆盖请求体自带值不重复()
+    {
+        (HttpEngine engine, List<StubHandler> handlers) = CreateEngine(_ => Respond(200));
+        SendRequest request = new("POST", $"{Base}/a",
+            [new KeyValueEntry("Content-Type", "application/json;utf-8")],
+            new RequestBody { Kind = RequestBodyKind.Raw, ContentType = "application/json", Text = "{}" }, null);
+
+        SendResult result = await engine.SendAsync(request, HermesSettings.Default);
+
+        // RecordedRequest 把同名头的多个值以逗号拼接：出现逗号即重复
+        // （known header 枚举时会规范化为 "application/json; utf-8"，与 verbatim 值语义等价）
+        Assert.Equal("application/json; utf-8", handlers[0].Requests[0].Headers["Content-Type"]);
+        History.NameValuePair contentType = Assert.Single(
+            result.FinalHop.Request.Headers, h => h.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("application/json; utf-8", contentType.Value);
+    }
+
+    [Fact]
+    public async Task SendAsync_显式ContentType头_覆盖UrlEncoded默认表单类型()
+    {
+        (HttpEngine engine, List<StubHandler> handlers) = CreateEngine(_ => Respond(200));
+        SendRequest request = new("POST", $"{Base}/a",
+            [new KeyValueEntry("Content-Type", "application/custom")],
+            new RequestBody { Kind = RequestBodyKind.UrlEncoded, Fields = [new KeyValueEntry("a", "1")] }, null);
+
+        await engine.SendAsync(request, HermesSettings.Default);
+
+        Assert.Equal("application/custom", handlers[0].Requests[0].Headers["Content-Type"]);
+    }
+
+    [Fact]
+    public async Task SendAsync_Connection头_原样发送()
+    {
+        (HttpEngine engine, List<StubHandler> handlers) = CreateEngine(_ => Respond(200));
+
+        await engine.SendAsync(
+            new SendRequest("GET", $"{Base}/a", [new KeyValueEntry("Connection", "keep-alive")], null, null),
+            HermesSettings.Default);
+
+        Assert.Equal("keep-alive", handlers[0].Requests[0].Headers["Connection"]);
+    }
+
+    [Fact]
+    public async Task SendAsync_同名头_以最下方的值为准()
+    {
+        (HttpEngine engine, List<StubHandler> handlers) = CreateEngine(_ => Respond(200));
+        SendRequest request = new("GET", $"{Base}/a",
+            [new KeyValueEntry("X-Dup", "first"), new KeyValueEntry("x-dup", "second")], null, null);
+
+        SendResult result = await engine.SendAsync(request, HermesSettings.Default);
+
+        Assert.Equal("second", handlers[0].Requests[0].Headers["X-Dup"]);
+        History.NameValuePair sent = Assert.Single(
+            result.FinalHop.Request.Headers, h => h.Key.Equals("X-Dup", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("second", sent.Value);
+    }
+
+    [Fact]
+    public async Task SendAsync_同名头最下方项被禁用_以上方启用项为准()
+    {
+        (HttpEngine engine, List<StubHandler> handlers) = CreateEngine(_ => Respond(200));
+        SendRequest request = new("GET", $"{Base}/a",
+            [new KeyValueEntry("X-Dup", "first"), new KeyValueEntry("X-Dup", "second", Enabled: false)], null, null);
+
+        await engine.SendAsync(request, HermesSettings.Default);
+
+        Assert.Equal("first", handlers[0].Requests[0].Headers["X-Dup"]);
+    }
 }

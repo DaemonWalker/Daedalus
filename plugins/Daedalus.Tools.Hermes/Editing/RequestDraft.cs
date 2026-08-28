@@ -30,8 +30,21 @@ public sealed record RequestDraft
     /// <summary>后事件脚本；无脚本时为 null。</summary>
     public string? PostResponseScript { get; init; }
 
-    /// <summary>空草稿（新建请求 / 清空编辑区）。</summary>
-    public static RequestDraft Empty => new();
+    /// <summary>
+    /// 新建请求的默认请求头（贴近 Postman/浏览器的常规默认）：预填进 Headers 页，可编辑或停用。
+    /// Accept-Encoding 的 gzip/deflate/br 由引擎侧 ResponseBodyDecoder 按响应 Content-Encoding 解压配合生效（hermes.md §5.1）。
+    /// </summary>
+    public static IReadOnlyList<KeyValueEntry> DefaultHeaders { get; } =
+    [
+        new("Accept", "*/*"),
+        new("Accept-Encoding", "gzip, deflate, br"),
+        new("Cache-Control", "no-cache"),
+        new("Connection", "keep-alive"),
+        new("User-Agent", "Daedalus-Hermes"),
+    ];
+
+    /// <summary>空草稿（新建请求 / 清空编辑区），带默认请求头。</summary>
+    public static RequestDraft Empty => new() { Headers = [.. DefaultHeaders] };
 
     /// <summary>从集合树的请求节点载入草稿。</summary>
     public static RequestDraft FromNode(CollectionNode node)

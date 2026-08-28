@@ -29,4 +29,33 @@ public sealed class RecentHistoryReader(HistoryStore store)
 
         return entries;
     }
+
+    /// <summary>
+    /// 查找指定请求最近一次的历史记录（切换请求时回填响应区）：方法不区分大小写、URL Ordinal 精确匹配，
+    /// 从今日起向前逐日、日内新→旧取首个命中；窗口内无匹配返回 null。
+    /// 历史保存的是变量替换后的 URL，含 <c>{{变量}}</c> 的模板 URL 通常匹配不到。
+    /// </summary>
+    public async Task<HistoryEntry?> FindLatestAsync(string method, string url, int days = DefaultDays, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(method);
+        ArgumentException.ThrowIfNullOrWhiteSpace(url);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(days, 0);
+
+        DateOnly today = DateOnly.FromDateTime(DateTime.Now);
+        for (int offset = 0; offset < days; offset++)
+        {
+            HistoryDayReadResult day = await store.ReadDayAsync(today.AddDays(-offset), cancellationToken).ConfigureAwait(false);
+            for (int i = day.Entries.Count - 1; i >= 0; i--)
+            {
+                HistoryEntry entry = day.Entries[i];
+                if (string.Equals(entry.Request.Method, method, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(entry.Request.Url, url, StringComparison.Ordinal))
+                {
+                    return entry;
+                }
+            }
+        }
+
+        return null;
+    }
 }

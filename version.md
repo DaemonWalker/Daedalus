@@ -2,6 +2,14 @@
 
 版本号格式：`大版本.小版本.bug修复`。最新版本在最上方。
 
+## 1.8.0（2026-08-28）
+
+- Hermes 请求头增强：默认头补 Cache-Control: no-cache（对齐 Postman 现行默认头全集）；Headers 页顶部新增自动计算行——Host 由 URL 推导（uri.Authority，含 {{变量}} 或非绝对 URL 时不显示）、Content-Length 按请求体 UTF-8 字节数估算、Content-Type 按请求体种类推导（与引擎 StringContent 口径一致），只读灰显、不进草稿/不保存、不可删除，可编辑行有同键启用项时对应自动行隐藏；KeyValueGrid 新增 SetAutoRows（行 Tag 标记 + UserDeletingRow 拦截）。引擎同名键规则：以最下方（最后出现）的启用项为准（OrdinalIgnoreCase 归键，非生效位置同名项跳过），与 Content-Type 去重逻辑叠加后同名单值头恒发一个值。Hermes.Tests 新增 2 例（同名头最下方生效/最下方禁用取上方启用项）并更新默认头断言；全部测试 320 项全绿
+
+## 1.7.0（2026-08-28）
+
+- Hermes 请求头与响应区改进：修复显式 Content-Type 头与请求体所选 Content-Type 重复发出的问题（引擎组装时显式头先移除再添加，单值头只发一个值）；新建请求预填默认请求头（Accept: \*/\*、Accept-Encoding: gzip, deflate, br、User-Agent: Daedalus-Hermes、Connection: keep-alive，Headers 页可编辑/停用）；新增 ResponseBodyDecoder——响应体按 Content-Encoding 解压（gzip/deflate/br，多层按施加逆序，deflate 兼容 zlib 封装与 raw，服务器标错编码时保留原始字节）再按 charset/BOM 解码，刻意不开 handler 的 AutomaticDecompression（它会向用户指定的 Accept-Encoding 并集自己的值），保证请求头原样发出；切换集合树请求时清空响应区，并按方法 + URL 精确匹配回填最近一次历史响应（ResponsePanel 显示版本号防止异步回填覆盖新状态，历史 URL 为变量替换后的值，含 {{变量}} 的模板 URL 匹配不到）。Hermes.Tests 新增 18 例（Content-Type 去重 2 例/Connection 原样发送/ResponseBodyDecoder 9 例/默认头预填/FindLatest 3 例/gzip 回环 2 例）；全部测试 318 项全绿
+
 ## 1.6.0（2026-08-27）
 
 - 第 17 步「Oedipus 解码工具」完成：新增解码工具插件 Oedipus（俄狄浦斯，id `daedalus.tools.oedipus`，显示名「Oedipus 解码」）——支持 Base64（`Convert.FromBase64String` → 严格 UTF-8 还原，非法格式/非 UTF-8 字节明确报错）、URL（`Uri.UnescapeDataString`）、XML 实体（`WebUtility.HtmlDecode`，覆盖预定义实体与十/十六进制数字实体）解码（FR-OEDIPUS-002）；JWT 解码（header/payload 经 Base64Url 解码后 System.Text.Json 美化输出——缩进 2、`UnsafeRelaxedJsonEscaping` 中文不转义；签名段不解码、原样标注于输出末尾；段数不符/非法 Base64Url/段内非法 JSON 均明确报错，FR-OEDIPUS-003）；界面为方式下拉（DropDownList）+ 解码/清空/复制输出 + SplitContainer 左右多行 TextBox + StatusStrip（FR-OEDIPUS-001）；settings.json（`{ "version": 1, "lastDecoding": "base64" }`）记住上次解码方式、启动恢复（FR-OEDIPUS-004），DR-003 损坏备份恢复，字段缺失/未知 id 容忍回落默认。纯 BCL 实现不新增第三方依赖；OedipusOperations 非 UI 可测（方式清单、错误收敛为状态文本、初始方式解析），OedipusTool/OedipusPanel 走架构 §6.0 注册范式（transient + scope 随标签页生灭）。Oedipus.Tests 27 例（四类解码向量/错误路径/JWT 完整解码/设置往返/DR-003/Tool 冒烟）；文档同步——新建 oedipus.md（含 §5.1 JWT 输出形态），requirements §1/§5.6、architecture §2/§6.1/§7、coding-style §2.1、plan README；全部测试 300 项全绿

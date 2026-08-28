@@ -76,4 +76,13 @@ public sealed class RequestDraftTests
         Assert.Equal(CollectionNodeType.Request, node.Type);
         Assert.Equal("新请求", node.Name);
     }
+
+    [Fact]
+    public void Empty_预填默认请求头且全部启用()
+    {
+        Assert.Equal(
+            ["Accept", "Accept-Encoding", "Cache-Control", "Connection", "User-Agent"],
+            RequestDraft.Empty.Headers.Select(h => h.Key).ToArray());
+        Assert.All(RequestDraft.Empty.Headers, h => Assert.True(h.Enabled));
+    }
 }

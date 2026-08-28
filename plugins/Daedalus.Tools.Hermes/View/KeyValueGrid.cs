@@ -12,6 +12,9 @@ internal sealed class KeyValueGrid : UserControl
 {
     private readonly DataGridView _grid;
 
+    // 自动计算行（Host/Content-Length/Content-Type 预览）的行标记：只读、灰显、不进 GetEntries、不可删除
+    private static readonly object AutoRowTag = new();
+
     // SetEntries 期间抑制事件，避免加载数据被当成用户编辑
     private bool _suppressEvents;
 
@@ -40,6 +43,8 @@ internal sealed class KeyValueGrid : UserControl
         };
         _grid.CellValueChanged += (_, _) => RaiseContentChanged();
         _grid.RowsRemoved += (_, _) => RaiseContentChanged();
+        // 自动计算行是预览，不允许用户删除
+        _grid.UserDeletingRow += (_, e) => e.Cancel = ReferenceEquals(e.Row?.Tag, AutoRowTag);
         // DefaultValuesNeeded 事件参数 Row 由框架保证非空
         _grid.DefaultValuesNeeded += (_, e) => e.Row!.Cells[2].Value = true;
 
@@ -70,13 +75,13 @@ internal sealed class KeyValueGrid : UserControl
         }
     }
 
-    /// <summary>读出现有行为键值表（不含末尾新增空行；键为空的行跳过）。</summary>
+    /// <summary>读出现有行为键值表（不含末尾新增空行与自动计算行；键为空的行跳过）。</summary>
     public List<KeyValueEntry> GetEntries()
     {
         var entries = new List<KeyValueEntry>();
         foreach (DataGridViewRow row in _grid.Rows)
         {
-            if (row.IsNewRow)
+            if (row.IsNewRow || ReferenceEquals(row.Tag, AutoRowTag))
             {
                 continue;
             }
@@ -93,6 +98,39 @@ internal sealed class KeyValueGrid : UserControl
         }
 
         return entries;
+    }
+
+    /// <summary>
+    /// 设置顶部的自动计算行（Host / Content-Length / Content-Type 的发送值预览）：
+    /// 只读灰显、不参与 <see cref="GetEntries"/>、不允许删除；与可编辑行同键的启用项存在时由调用方决定不显示。
+    /// </summary>
+    public void SetAutoRows(IReadOnlyList<KeyValueEntry> entries)
+    {
+        _suppressEvents = true;
+        try
+        {
+            // 移除旧的自动行（RowsRemoved 事件被抑制，不会误报内容变化）
+            for (int i = _grid.Rows.Count - 1; i >= 0; i--)
+            {
+                if (ReferenceEquals(_grid.Rows[i].Tag, AutoRowTag))
+                {
+                    _grid.Rows.RemoveAt(i);
+                }
+            }
+
+            for (int i = 0; i < entries.Count; i++)
+            {
+                _grid.Rows.Insert(i, entries[i].Key, entries[i].Value, true);
+                DataGridViewRow row = _grid.Rows[i];
+                row.Tag = AutoRowTag;
+                row.ReadOnly = true;
+                row.DefaultCellStyle.ForeColor = SystemColors.GrayText;
+            }
+        }
+        finally
+        {
+            _suppressEvents = false;
+        }
     }
 
     private void RaiseContentChanged()

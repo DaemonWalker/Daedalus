@@ -1,7 +1,10 @@
+using System.Globalization;
+using System.Text;
 using System.Windows.Forms;
 
 using Daedalus.Tools.Hermes.Collections;
 using Daedalus.Tools.Hermes.Editing;
+using Daedalus.Tools.Hermes.Http;
 
 using FastColoredTextBoxNS;
 
@@ -193,6 +196,48 @@ internal sealed class RequestEditorPanel : UserControl
         {
             _suppressEvents = false;
         }
+
+        RefreshAutoHeaders();
+    }
+
+    /// <summary>
+    /// 刷新 Headers 页顶部的自动计算行（只读预览，与 Postman 的 hidden headers 对应）：
+    /// Host 由 URL 推导、Content-Length / Content-Type 由请求体推导；
+    /// 可编辑行中已有同键启用项时不显示对应自动行（显式头生效，见引擎同名键"以最下方为准"）。
+    /// </summary>
+    private void RefreshAutoHeaders()
+    {
+        List<KeyValueEntry> userEntries = _headersGrid.GetEntries();
+        bool IsOverridden(string key) => userEntries.Any(e => e.Enabled && e.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
+
+        var auto = new List<KeyValueEntry>();
+        // Host 由 URL 推导；含 {{变量}} 或不是绝对 URL 时无法预知，不显示
+        if (!IsOverridden("Host") && Uri.TryCreate(_urlBox.Text.Trim(), UriKind.Absolute, out Uri? uri))
+        {
+            auto.Add(new KeyValueEntry("Host", uri.Authority));
+        }
+
+        RequestBody? body = BuildBody();
+        if (body is not null)
+        {
+            // 变量替换发生在发送时，这里按未替换文本估算，仅作预览
+            if (!IsOverridden("Content-Length"))
+            {
+                auto.Add(new KeyValueEntry("Content-Length",
+                    Encoding.UTF8.GetByteCount(HttpEngine.GetBodyText(body) ?? string.Empty).ToString(CultureInfo.InvariantCulture)));
+            }
+
+            if (!IsOverridden("Content-Type"))
+            {
+                // 与引擎 BuildContent 口径一致：StringContent 默认带 charset=utf-8
+                string contentType = body.Kind == RequestBodyKind.UrlEncoded
+                    ? "application/x-www-form-urlencoded; charset=utf-8"
+                    : body.ContentType ?? "text/plain; charset=utf-8";
+                auto.Add(new KeyValueEntry("Content-Type", contentType));
+            }
+        }
+
+        _headersGrid.SetAutoRows(auto);
     }
 
     /// <summary>把当前内容记为已保存基准，并更新脏标记事件。</summary>
@@ -301,6 +346,7 @@ internal sealed class RequestEditorPanel : UserControl
     {
         if (!_suppressEvents)
         {
+            RefreshAutoHeaders();
             DirtyChanged?.Invoke(this, IsDirty);
         }
     }

@@ -96,6 +96,8 @@ public sealed class HttpClientFactory : IDisposable
             // 重定向一律由 HttpEngine 手动跟随（hermes.md §5.3），handler 层永不自动跳转
             AllowAutoRedirect = false,
             UseCookies = useCookies,
+            // 不开 AutomaticDecompression：它会向用户指定的 Accept-Encoding 并集 handler 自己的值，
+            // 破坏"请求头原样发出"的语义；解压由引擎侧 ResponseBodyDecoder 按响应 Content-Encoding 处理
         };
         if (useCookies)
         {

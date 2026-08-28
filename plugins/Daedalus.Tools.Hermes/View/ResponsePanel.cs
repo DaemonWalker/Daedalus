@@ -19,6 +19,9 @@ internal sealed class ResponsePanel : UserControl
     private readonly TabControl _hopTabs;
     private readonly Label _emptyLabel;
 
+    /// <summary>显示内容版本：每次清空/渲染递增，供异步回填判定界面是否仍停留在那次清空（期间又切换或发送则放弃回填）。</summary>
+    public int DisplayVersion { get; private set; }
+
     public ResponsePanel()
     {
         _hopTabs = new TabControl { Dock = DockStyle.Fill };
@@ -54,6 +57,18 @@ internal sealed class ResponsePanel : UserControl
         _hopTabs.BringToFront();
     }
 
+    /// <summary>把一条历史记录渲染为单跳结果（切换请求时回填最近一次响应）；历史不含状态描述文本，标题只显状态码。</summary>
+    public void ShowHistory(HistoryEntry entry, ResponseBeautifier beautifier)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        var request = new HopRequest(entry.Request.Method, entry.Request.Url, entry.Request.Headers, entry.Request.Body);
+        var response = new HopResponse(
+            entry.Response.Status, ReasonPhrase: null, entry.Response.Headers,
+            entry.Response.Body ?? string.Empty, entry.Response.ElapsedMs);
+        ShowResult(new SendResult([new ResponseHop(1, request, response)], RedirectLimitExceeded: false, RedirectLoopDetected: false), beautifier);
+    }
+
     /// <summary>渲染发送失败（网络错误等，无响应）。</summary>
     public void ShowError(string message)
     {
@@ -74,6 +89,7 @@ internal sealed class ResponsePanel : UserControl
 
     private void ClearTabs()
     {
+        DisplayVersion++;
         foreach (TabPage page in _hopTabs.TabPages)
         {
             page.Dispose();

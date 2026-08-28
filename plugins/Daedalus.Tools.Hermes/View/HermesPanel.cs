@@ -484,6 +484,38 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         _editor.MarkSaved();
         _editor.SaveEnabled = true;
         _statusLabel.Text = string.Empty;
+
+        // 切换请求先清空响应区，再尝试回填该请求最近一次的历史响应
+        _responsePanel.Clear();
+        _ = ShowLatestHistoryAsync(args.Node);
+    }
+
+    /// <summary>切换请求后回填最近一次历史响应（即发即弃）；期间界面内容已变化（再次切换/新发送）则放弃回填。</summary>
+    private async Task ShowLatestHistoryAsync(CollectionNode node)
+    {
+        int clearedVersion = _responsePanel.DisplayVersion;
+        try
+        {
+            string url = node.Url ?? string.Empty;
+            if (url.Length == 0)
+            {
+                return;
+            }
+
+            HistoryEntry? entry = await _historyReader.FindLatestAsync(node.Method ?? "GET", url);
+            if (entry is null || _responsePanel.DisplayVersion != clearedVersion)
+            {
+                return;
+            }
+
+            _responsePanel.ShowHistory(entry, _beautifier);
+            _statusLabel.Text = $"已显示最近一次历史响应（{entry.Timestamp:MM-dd HH:mm:ss}）";
+        }
+        catch (Exception ex)
+        {
+            // 回填是辅助动作，失败只记日志不干扰主流程
+            _logger.Error(ex, "回填历史响应失败");
+        }
     }
 
     private async Task SaveCollectionsAsync(IReadOnlyList<HermesCollection> affected)
@@ -573,6 +605,7 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         _editor.LoadDraft(RequestDraft.Empty);
         _editor.MarkSaved();
         _editor.SaveEnabled = false;
+        _responsePanel.Clear();
     }
 
     // ---------- 发送 ----------
