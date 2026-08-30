@@ -6,8 +6,8 @@ using Serilog;
 namespace Daedalus.App;
 
 /// <summary>
-/// 主窗口（工具箱外壳，架构 §6）：左侧工具列表 + 右侧标签页容器 + 底部状态栏。
-/// 双击工具名调用 <see cref="ITool.CreateView"/> 开新标签页（FR-SHELL-002），同一工具可开多个、
+/// 主窗口（工具箱外壳，架构 §6）：顶部菜单栏（工具入口）+ 标签页容器 + 底部状态栏。
+/// 「工具」菜单单击工具名调用 <see cref="ITool.CreateView"/> 开新标签页（FR-SHELL-002），同一工具可开多个、
 /// 标签页点 × 或中键关闭（FR-SHELL-003）；插件加载失败清单显示在状态栏、点击查看详情（FR-SHELL-004）。
 /// </summary>
 internal sealed class MainForm : Form
@@ -49,24 +49,16 @@ internal sealed class MainForm : Form
         _tabs.MouseClick += OnTabMouseClick;
         FormClosing += OnMainFormClosing;
 
-        var toolList = new ListBox { Dock = DockStyle.Fill, IntegralHeight = false };
+        var toolsMenu = new ToolStripMenuItem("工具(&T)");
         foreach (ITool tool in _catalog.Tools)
         {
-            toolList.Items.Add(new ToolListItem(tool));
+            var item = new ToolStripMenuItem(tool.Metadata.DisplayName) { Tag = tool };
+            item.Click += (_, _) => OpenTool(tool);
+            toolsMenu.DropDownItems.Add(item);
         }
 
-        toolList.DoubleClick += (_, _) => OpenSelectedTool(toolList);
-
-        var toolPanel = new Panel { Dock = DockStyle.Left, Width = 200 };
-        var toolHeader = new Label
-        {
-            Dock = DockStyle.Top,
-            Text = "工具（双击打开）",
-            Padding = new Padding(6, 8, 6, 4),
-            AutoSize = true,
-        };
-        toolPanel.Controls.Add(toolList);
-        toolPanel.Controls.Add(toolHeader);
+        var menuStrip = new MenuStrip();
+        menuStrip.Items.Add(toolsMenu);
 
         var statusStrip = new StatusStrip();
         var statusLabel = new ToolStripStatusLabel();
@@ -84,23 +76,17 @@ internal sealed class MainForm : Form
 
         // 停靠顺序与 z-order 相反：后添加的先停靠，故 Fill 的 TabControl 最先加入
         Controls.Add(_tabs);
-        Controls.Add(toolPanel);
         Controls.Add(statusStrip);
+        Controls.Add(menuStrip);
+        MainMenuStrip = menuStrip;
 
         // 高 DPI 适配（详见 DpiScale）
         DpiScale.Apply(this);
     }
 
-    private void OpenSelectedTool(ListBox toolList)
+    private void OpenTool(ITool tool)
     {
-        if (toolList.SelectedItem is not ToolListItem item)
-        {
-            return;
-        }
-
-        ITool tool = item.Tool;
-
-        // 容器构建失败的工具仍在列表中可见，打开时按打开失败处理（提示与 CreateView 异常路径一致）
+        // 容器构建失败的工具仍在菜单中可见，打开时按打开失败处理（提示与 CreateView 异常路径一致）
         IServiceProvider? services = _containers.Find(tool);
         if (services is null)
         {
@@ -239,10 +225,4 @@ internal sealed class MainForm : Form
         page.Controls.Count == 0
         || page.Controls[0] is not IToolCloseConfirmation confirmation
         || confirmation.ConfirmClose();
-
-    /// <summary>工具列表项：ListBox 按 <see cref="ToString"/> 显示工具名。</summary>
-    private sealed record ToolListItem(ITool Tool)
-    {
-        public override string ToString() => Tool.Metadata.DisplayName;
-    }
 }
