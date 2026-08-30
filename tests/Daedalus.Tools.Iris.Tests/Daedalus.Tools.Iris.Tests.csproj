@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\plugins\Daedalus.Tools.Oedipus\Daedalus.Tools.Oedipus.csproj" />
+    <ProjectReference Include="..\..\plugins\Daedalus.Tools.Iris\Daedalus.Tools.Iris.csproj" />
   </ItemGroup>
 
   <ItemGroup>

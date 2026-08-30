@@ -1,12 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Cadmus：编码工具插件（ITool）。插件只允许依赖 Daedalus.Abstractions（规范 §8）。 -->
+  <!-- Iris：编码/解码/加解密一体工具插件（ITool）。插件只允许依赖 Daedalus.Abstractions（规范 §8）。 -->
   <PropertyGroup>
     <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Daedalus.Abstractions\Daedalus.Abstractions.csproj" />
+  </ItemGroup>
+
+  <!-- 测试工程需触达字节级核心（NIST 向量对拍、密钥对 PEM 元组），不扩大公开 API -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Daedalus.Tools.Iris.Tests" />
   </ItemGroup>
 
   <!-- 生成后事件（架构 §5.3）：产物拷贝到 App 输出目录 plugins/。

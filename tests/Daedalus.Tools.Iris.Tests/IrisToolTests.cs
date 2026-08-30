@@ -6,25 +6,25 @@ using Microsoft.Extensions.DependencyInjection;
 
 using Serilog;
 
-namespace Daedalus.Tools.Oedipus.Tests;
+namespace Daedalus.Tools.Iris.Tests;
 
-/// <summary>OedipusTool 测试：插件契约（元数据、RegisterServices / CreateView 冒烟）。</summary>
-public class OedipusToolTests
+/// <summary>IrisTool 测试：插件契约（元数据、RegisterServices / CreateView 冒烟）。</summary>
+public class IrisToolTests
 {
     [Fact]
     public void Metadata_插件元数据_id与显示名符合约定()
     {
-        var tool = new OedipusTool();
+        var tool = new IrisTool();
 
-        Assert.Equal("daedalus.tools.oedipus", tool.Metadata.Id);
+        Assert.Equal("daedalus.tools.iris", tool.Metadata.Id);
         Assert.False(string.IsNullOrWhiteSpace(tool.Metadata.DisplayName));
     }
 
     [Fact]
     public void RegisterServices与CreateView_预置宿主服务后_成功创建视图()
     {
-        var tool = new OedipusTool();
-        var host = new FakeToolHost(Path.Combine(Path.GetTempPath(), "daedalus-oedipus-tool-" + Guid.NewGuid().ToString("N")));
+        var tool = new IrisTool();
+        var host = new FakeToolHost(Path.Combine(Path.GetTempPath(), "daedalus-iris-tool-" + Guid.NewGuid().ToString("N")));
         var services = new ServiceCollection();
         // 照 App 组合根约定（架构 §6.0）：以实例形式预置 IToolHost 与按插件 id 打好上下文的 ILogger
         services.AddSingleton<IToolHost>(host);

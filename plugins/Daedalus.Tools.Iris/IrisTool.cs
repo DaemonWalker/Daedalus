@@ -4,33 +4,34 @@ using Daedalus.Abstractions;
 
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Daedalus.Tools.Cadmus;
+namespace Daedalus.Tools.Iris;
 
 /// <summary>
-/// Cadmus（卡德摩斯，将腓尼基字母传入希腊——编码/书写之神）工具插件（docs/plugins/cadmus.md）：
-/// Base64 / URL 编码。编码方式内置于工具本体，不依赖格式化器插件。
+/// Iris（伊里斯，众神信使——承载信息的编码与密文传递）工具插件（docs/plugins/iris.md）：
+/// Base64 / URL 编码，Base64 / URL / XML 实体 / JWT 解码，AES / RSA 加解密。
+/// 方式内置于工具本体，不依赖格式化器插件。承继并取代 Cadmus / Oedipus。
 /// </summary>
-public sealed class CadmusTool : ITool
+public sealed class IrisTool : ITool
 {
     /// <summary>工具 id（数据目录、日志上下文均以此标识）。</summary>
-    internal const string ToolId = "daedalus.tools.cadmus";
+    internal const string ToolId = "daedalus.tools.iris";
 
     /// <inheritdoc />
     public ToolMetadata Metadata { get; } = new(
         ToolId,
-        "Cadmus 编码",
-        "编码工具：Base64 / URL 编码",
+        "Iris 编码与加密",
+        "编码/解码/加解密一体工具：Base64 / URL 编码，Base64 / URL / XML 实体 / JWT 解码，AES / RSA 加解密",
         new Version(1, 0, 0));
 
-    /// <summary>注册约定（cadmus.md §4.1）：视图树为 transient，每次开标签页在 scope 内解析新实例。</summary>
+    /// <summary>注册约定（iris.md §4.1）：视图树为 transient，每次开标签页在 scope 内解析新实例。</summary>
     public void RegisterServices(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
 
         // 数据目录经预置的 IToolHost 解析
-        services.AddTransient(sp => new CadmusSettingsStore(
+        services.AddTransient(sp => new IrisSettingsStore(
             sp.GetRequiredService<IToolHost>().GetDataDirectory(ToolId)));
-        services.AddTransient<CadmusPanel>();
+        services.AddTransient<IrisPanel>();
     }
 
     /// <inheritdoc />
@@ -43,7 +44,7 @@ public sealed class CadmusTool : ITool
         IServiceScope scope = services.CreateScope();
         try
         {
-            var panel = scope.ServiceProvider.GetRequiredService<CadmusPanel>();
+            var panel = scope.ServiceProvider.GetRequiredService<IrisPanel>();
             panel.Disposed += (_, _) => scope.Dispose();
             return panel;
         }

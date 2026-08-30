@@ -8,8 +8,7 @@
 |---|---|
 | **Hermes** | 类 Postman 的 HTTP 客户端：请求编辑与发送、集合树管理、环境变量（`{{变量}}` 引用与悬浮就地编辑）、重定向跳转链逐跳查看、Cookie 共享、Postman Collection / Environment 与 cURL 导入、JavaScript 后事件脚本（Jint 沙箱，`pm` API 子集）、历史记录按天存储与按月归档、全文搜索 |
 | **Proteus** | 多格式文本格式化工具：美化 / 压缩 / 校验（错误定位行列）、语法高亮；支持的格式由格式化器插件提供（第一方：JSON、XML） |
-| **Cadmus** | 编码工具：Base64、URL 编码 |
-| **Oedipus** | 解码工具：Base64、URL、XML 实体、JWT 解码 |
+| **Iris** | 编码/解码/加解密一体工具：Base64、URL 编码；Base64、URL、XML 实体、JWT 解码；AES（ECB/CBC/GCM，口令派生或直接密钥）、RSA（密钥对生成/导入 PEM 加解密） |
 
 工具以古希腊神话 / 荷马史诗中职能相近的人物命名。
 
