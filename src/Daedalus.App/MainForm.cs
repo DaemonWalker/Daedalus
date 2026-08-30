@@ -6,9 +6,10 @@ using Serilog;
 namespace Daedalus.App;
 
 /// <summary>
-/// 主窗口（工具箱外壳，架构 §6）：顶部菜单栏（工具入口）+ 标签页容器 + 底部状态栏。
+/// 主窗口（工具箱外壳，架构 §6）：顶部菜单栏（工具入口 + 设置入口）+ 标签页容器 + 底部状态栏。
 /// 「工具」菜单单击工具名调用 <see cref="ITool.CreateView"/> 开新标签页（FR-SHELL-002），同一工具可开多个、
-/// 标签页点 × 或中键关闭（FR-SHELL-003）；插件加载失败清单显示在状态栏、点击查看详情（FR-SHELL-004）。
+/// 标签页点 × 或中键关闭（FR-SHELL-003）；「设置」菜单打开统一设置窗口（FR-SHELL-006）；
+/// 插件加载失败清单显示在状态栏、点击查看详情（FR-SHELL-004）。
 /// </summary>
 internal sealed class MainForm : Form
 {
@@ -18,21 +19,33 @@ internal sealed class MainForm : Form
     private readonly IToolHost _host;
     private readonly ToolContainerRegistry _containers;
     private readonly ILogger _logger;
+    private readonly string _configFilePath;
+    private readonly LoggingSettings _loggingSettings;
     private readonly TabControl _tabs;
 
     // 各标签页 × 按钮的命中区域，在 OwnerDraw 时计算；标签页增删后索引位移，需清空重算
     private readonly Dictionary<int, Rectangle> _closeButtonBounds = [];
 
-    public MainForm(PluginCatalog catalog, IToolHost host, ToolContainerRegistry containers, ILogger logger)
+    public MainForm(
+        PluginCatalog catalog,
+        IToolHost host,
+        ToolContainerRegistry containers,
+        ILogger logger,
+        string configFilePath,
+        LoggingSettings loggingSettings)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(containers);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentException.ThrowIfNullOrWhiteSpace(configFilePath);
+        ArgumentNullException.ThrowIfNull(loggingSettings);
         _catalog = catalog;
         _host = host;
         _containers = containers;
         _logger = logger;
+        _configFilePath = configFilePath;
+        _loggingSettings = loggingSettings;
 
         Text = "Daedalus";
         StartPosition = FormStartPosition.CenterScreen;
@@ -57,8 +70,12 @@ internal sealed class MainForm : Form
             toolsMenu.DropDownItems.Add(item);
         }
 
+        var settingsMenu = new ToolStripMenuItem("设置(&S)");
+        settingsMenu.Click += (_, _) => OpenSettings();
+
         var menuStrip = new MenuStrip();
         menuStrip.Items.Add(toolsMenu);
+        menuStrip.Items.Add(settingsMenu);
 
         var statusStrip = new StatusStrip();
         var statusLabel = new ToolStripStatusLabel();
@@ -128,6 +145,13 @@ internal sealed class MainForm : Form
         page.Controls.Add(view);
         _tabs.TabPages.Add(page);
         _tabs.SelectedTab = page;
+    }
+
+    /// <summary>打开统一设置窗口（FR-SHELL-006）：全局设置 + 各工具设置页。</summary>
+    private void OpenSettings()
+    {
+        using var form = new SettingsForm(_configFilePath, _loggingSettings, _catalog, _host, _containers, _logger);
+        form.ShowDialog(this);
     }
 
     private string GetTabTitle(ITool tool)

@@ -21,7 +21,7 @@ namespace Daedalus.Tools.Hermes;
 /// Hermes（神使）工具插件（docs/plugins/hermes.md）：HTTP 客户端——请求编辑与发送、
 /// 重定向跳转链、集合管理、环境变量、历史记录。
 /// </summary>
-public sealed class HermesTool : ITool
+public sealed class HermesTool : ITool, IToolSettingsProvider
 {
     /// <summary>工具 id（数据目录、日志上下文均以此标识）。</summary>
     internal const string ToolId = "daedalus.tools.hermes";
@@ -63,6 +63,7 @@ public sealed class HermesTool : ITool
         services.AddTransient<HistoryPanel>();
         services.AddTransient<ResponsePanel>();
         services.AddTransient<HermesPanel>();
+        services.AddTransient<HermesSettingsPanel>();
     }
 
     /// <inheritdoc />
@@ -76,6 +77,27 @@ public sealed class HermesTool : ITool
         try
         {
             var panel = scope.ServiceProvider.GetRequiredService<HermesPanel>();
+            panel.Disposed += (_, _) => scope.Dispose();
+            return panel;
+        }
+        catch
+        {
+            scope.Dispose();
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
+    public Control CreateSettingsView(IToolHost host, IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(services);
+
+        // scope 与设置窗口同生灭（约定同 CreateView）
+        IServiceScope scope = services.CreateScope();
+        try
+        {
+            var panel = scope.ServiceProvider.GetRequiredService<HermesSettingsPanel>();
             panel.Disposed += (_, _) => scope.Dispose();
             return panel;
         }

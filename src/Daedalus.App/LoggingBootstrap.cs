@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 using Serilog;
 using Serilog.Events;
@@ -76,6 +77,50 @@ internal static class LoggingBootstrap
 
             return new LoggingSettings(defaultLevel, overrides);
         }
+    }
+
+    /// <summary>
+    /// 把日志配置写回 <paramref name="filePath"/>（设置窗口保存入口）：保留文件中其他节，仅替换 logging 节；
+    /// 原文件损坏（JSON 无法解析）时按 DR-003 备份为 *.broken-时间戳 后整体重写。
+    /// </summary>
+    public static async Task SaveAsync(string filePath, LoggingSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        JsonObject root = new();
+        if (File.Exists(filePath))
+        {
+            JsonNode? parsed = null;
+            try
+            {
+                parsed = JsonNode.Parse(await File.ReadAllTextAsync(filePath));
+            }
+            catch (JsonException)
+            {
+                File.Move(filePath, filePath + ".broken-" + DateTime.Now.ToString("yyyyMMdd-HHmmss"));
+            }
+
+            // 解析成功但根不是对象（如手工写成数组）：内容无从保留，按空配置重写
+            if (parsed is JsonObject existing)
+            {
+                root = existing;
+            }
+        }
+
+        var logging = new JsonObject { ["default"] = settings.DefaultLevel.ToString() };
+        if (settings.Overrides.Count > 0)
+        {
+            var overrides = new JsonObject();
+            foreach ((string source, LogEventLevel level) in settings.Overrides)
+            {
+                overrides[source] = level.ToString();
+            }
+
+            logging["overrides"] = overrides;
+        }
+
+        root["logging"] = logging;
+        await File.WriteAllTextAsync(filePath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
     }
 
     /// <summary>按配置构建 Serilog 管道：滚动文件 sink（按天、保留 14 天）+ 默认级别 + override。</summary>

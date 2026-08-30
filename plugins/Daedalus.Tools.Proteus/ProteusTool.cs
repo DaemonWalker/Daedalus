@@ -10,7 +10,7 @@ namespace Daedalus.Tools.Proteus;
 /// Proteus（变形之神）工具插件（docs/plugins/proteus.md）：文本格式化/压缩/校验。
 /// 支持的格式完全由 <see cref="IFormatter"/> 插件提供，工具本体不内置任何格式（FR-PROTEUS-003）。
 /// </summary>
-public sealed class ProteusTool : ITool
+public sealed class ProteusTool : ITool, IToolSettingsProvider
 {
     /// <summary>工具 id（数据目录、日志上下文均以此标识）。</summary>
     internal const string ToolId = "daedalus.tools.proteus";
@@ -31,6 +31,7 @@ public sealed class ProteusTool : ITool
         services.AddTransient(sp => new ProteusSettingsStore(
             sp.GetRequiredService<IToolHost>().GetDataDirectory(ToolId)));
         services.AddTransient<ProteusPanel>();
+        services.AddTransient<ProteusSettingsPanel>();
     }
 
     /// <inheritdoc />
@@ -44,6 +45,27 @@ public sealed class ProteusTool : ITool
         try
         {
             var panel = scope.ServiceProvider.GetRequiredService<ProteusPanel>();
+            panel.Disposed += (_, _) => scope.Dispose();
+            return panel;
+        }
+        catch
+        {
+            scope.Dispose();
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
+    public Control CreateSettingsView(IToolHost host, IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(services);
+
+        // scope 与设置窗口同生灭（约定同 CreateView）
+        IServiceScope scope = services.CreateScope();
+        try
+        {
+            var panel = scope.ServiceProvider.GetRequiredService<ProteusSettingsPanel>();
             panel.Disposed += (_, _) => scope.Dispose();
             return panel;
         }

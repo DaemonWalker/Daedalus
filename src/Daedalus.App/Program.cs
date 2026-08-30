@@ -50,7 +50,13 @@ internal static class Program
                 Log.Information("已加载工具 {ToolId}（{DisplayName} {Version}）", tool.Metadata.Id, tool.Metadata.DisplayName, tool.Metadata.Version);
             }
 
-            Application.Run(new MainForm(catalog, host, containers, Log.Logger));
+            Application.Run(new MainForm(
+                catalog,
+                host,
+                containers,
+                Log.Logger,
+                Path.Combine(baseDirectory, LoggingBootstrap.ConfigFileName),
+                loggingSettings));
         }
         catch (Exception ex)
         {

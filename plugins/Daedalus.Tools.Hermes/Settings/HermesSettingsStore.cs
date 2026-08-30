@@ -16,6 +16,8 @@ public sealed record HermesSettingsLoadResult(
 /// <summary>
 /// Hermes 设置的持久化（hermes.md §11.4）：数据目录下的 settings.json，修改即保存（FR-HERMES-061）。
 /// 读取损坏（JSON 解析失败或上限值非法）按 DR-003 备份原文件并以默认值启动。
+/// Store 为跨标签页共享的 singleton：保存成功后经 <see cref="Changed"/> 广播，
+/// 供已打开的主面板在设置经统一设置窗口修改后同步进程内副本（否则布局落盘会把新设置覆盖回旧值）。
 /// </summary>
 public sealed class HermesSettingsStore
 {
@@ -30,6 +32,9 @@ public sealed class HermesSettingsStore
         _filePath = Path.Combine(dataDirectory, "settings.json");
         _logger = logger;
     }
+
+    /// <summary>设置保存成功后触发（含主面板的布局落盘）。</summary>
+    public event EventHandler<HermesSettings>? Changed;
 
     /// <summary>读取设置；文件不存在返回默认值（不视为损坏），损坏时备份原文件并返回默认值。</summary>
     public async Task<HermesSettingsLoadResult> LoadAsync()
@@ -48,11 +53,12 @@ public sealed class HermesSettingsStore
         return new HermesSettingsLoadResult(result.Value ?? HermesSettings.Default, false, null);
     }
 
-    /// <summary>保存设置（覆盖写）。</summary>
+    /// <summary>保存设置（覆盖写）；成功后广播 <see cref="Changed"/>。</summary>
     public async Task SaveAsync(HermesSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
         await JsonDataFile.SaveAsync(_filePath, settings).ConfigureAwait(false);
         _logger?.Debug("设置已保存到 {FilePath}", _filePath);
+        Changed?.Invoke(this, settings);
     }
 }

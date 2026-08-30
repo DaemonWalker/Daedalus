@@ -25,7 +25,6 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
 
     private readonly ILogger _logger;
     private readonly SendOrchestrator _orchestrator;
-    private readonly HttpClientFactory _clientFactory;
     private readonly CollectionStore _collectionStore;
     private readonly EnvironmentStore _environmentStore;
     private readonly HistoryStore _historyStore;
@@ -80,7 +79,6 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
     public HermesPanel(
         ILogger logger,
         SendOrchestrator orchestrator,
-        HttpClientFactory clientFactory,
         CollectionStore collectionStore,
         EnvironmentStore environmentStore,
         HistoryStore historyStore,
@@ -96,10 +94,8 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
     {
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(orchestrator);
-        ArgumentNullException.ThrowIfNull(clientFactory);
         _logger = logger;
         _orchestrator = orchestrator;
-        _clientFactory = clientFactory;
         _collectionStore = collectionStore;
         _environmentStore = environmentStore;
         _historyStore = historyStore;
@@ -118,13 +114,11 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         importMenu.Items.Add("从 Postman 文件导入…", null, async (_, _) => await ImportPostmanAsync());
         importMenu.Items.Add("从 cURL 命令导入…", null, (_, _) => ImportCurl());
         importButton.Click += (_, _) => importMenu.Show(importButton, new Point(0, importButton.Height));
-        var settingsButton = new Button { Text = "设置", AutoSize = true };
         var topBar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(4) };
         topBar.Controls.Add(new Label { Text = "环境:", AutoSize = true, Padding = new Padding(0, 6, 0, 0) });
         topBar.Controls.Add(_envCombo);
         topBar.Controls.Add(manageEnvButton);
         topBar.Controls.Add(importButton);
-        topBar.Controls.Add(settingsButton);
 
         // 子面板由容器以 transient 注入；运行时委托（悬浮编辑）与 RequestEditorPanel 保留手工接线
         _collectionPanel = collectionPanel;
@@ -156,7 +150,7 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
 
         _envCombo.SelectedIndexChanged += async (_, _) => await ActiveEnvironmentChangedAsync();
         manageEnvButton.Click += (_, _) => OpenEnvironmentManager();
-        settingsButton.Click += (_, _) => OpenSettings();
+        _settingsStore.Changed += SettingsStore_Changed;
         _mainSplit.SplitterMoved += async (_, _) => await SaveLayoutAsync();
         _leftSplit.SplitterMoved += async (_, _) => await SaveLayoutAsync();
         _rightSplit.SplitterMoved += async (_, _) => await SaveLayoutAsync();
@@ -310,6 +304,24 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         }
     }
 
+    // Store 为跨标签共享 singleton：设置经统一设置窗口修改后广播到此，同步本面板的发送参数副本，
+    // 否则后续布局落盘（SaveLayoutAsync 整体回写 settings.json）会把新设置覆盖回旧值
+    private void SettingsStore_Changed(object? sender, HermesSettings settings)
+    {
+        _settings = settings;
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            // Store 是进程级 singleton，不退订会让已关闭的面板一直被它引用
+            _settingsStore.Changed -= SettingsStore_Changed;
+        }
+
+        base.Dispose(disposing);
+    }
+
     // ---------- 环境 ----------
 
     private void RefreshEnvironmentCombo()
@@ -367,62 +379,6 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         form.ShowDialog(this);
         _environmentData = form.Data;
         RefreshEnvironmentCombo();
-    }
-
-    private void OpenSettings()
-    {
-        using var form = new HermesSettingsForm(_settings, settings => _settingsStore.SaveAsync(settings));
-        form.SettingsChanged += (_, settings) =>
-        {
-            bool ignoreCertificateChanged = settings.IgnoreServerCertificate != _settings.IgnoreServerCertificate;
-            _settings = settings;
-            if (ignoreCertificateChanged)
-            {
-                // 证书校验开关变化 → 销毁重建双 client（hermes.md §5.2，FR-HERMES-008）
-                _clientFactory.SetIgnoreServerCertificate(settings.IgnoreServerCertificate);
-            }
-        };
-        form.ArchiveRequested += async (_, _) => await RunManualArchiveAsync(form);
-        form.ShowDialog(this);
-    }
-
-    /// <summary>设置面板"立即归档"（FR-HERMES-053 手动入口）：执行归档并反馈结果。</summary>
-    private async Task RunManualArchiveAsync(IWin32Window owner)
-    {
-        try
-        {
-            HistoryArchiveResult result = await _historyArchive.ArchiveOldFilesAsync();
-            string message;
-            if (result.ArchivedMonths.Count == 0 && result.SkippedMonths.Count == 0 && result.FailedMonths.Count == 0)
-            {
-                message = "没有需要归档的历史文件。";
-            }
-            else
-            {
-                var lines = new List<string>();
-                if (result.ArchivedMonths.Count > 0)
-                {
-                    lines.Add($"已归档（{result.Compressor}）：{string.Join("、", result.ArchivedMonths)}");
-                }
-                if (result.SkippedMonths.Count > 0)
-                {
-                    lines.Add($"已跳过（归档包已存在，原文件保留）：{string.Join("、", result.SkippedMonths)}");
-                }
-                if (result.FailedMonths.Count > 0)
-                {
-                    lines.Add($"归档失败（原文件保留，详见日志）：{string.Join("、", result.FailedMonths)}");
-                }
-
-                message = string.Join('\n', lines);
-            }
-
-            MessageBox.Show(owner, message, "历史归档", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-        catch (Exception ex)
-        {
-            _logger.Error(ex, "手动归档历史失败");
-            MessageBox.Show(owner, $"归档失败：{ex.Message}", "历史归档", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
     }
 
     /// <summary>启动时后台归档检查（hermes.md §10.2）；有归档动作时刷新历史列表并在状态栏提示。</summary>

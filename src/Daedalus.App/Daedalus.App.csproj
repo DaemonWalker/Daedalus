@@ -19,4 +19,9 @@
     <ProjectReference Include="..\Daedalus.Hosting\Daedalus.Hosting.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 日志配置的解析/保存逻辑（LoggingBootstrap）为 internal，向测试工程开放 -->
+    <InternalsVisibleTo Include="Daedalus.App.Tests" />
+  </ItemGroup>
+
 </Project>
