@@ -188,6 +188,25 @@ public class IrisOperationsTests
     }
 
     [Fact]
+    public void Decode_Xml解码结果是合法Xml_美化排版并换行()
+    {
+        IrisOperationResult result = IrisOperations.Decode(Method(IrisOperations.XmlDecodeId), "&lt;root&gt;&lt;a&gt;1&lt;/a&gt;&lt;/root&gt;");
+
+        Assert.True(result.Success);
+        Assert.Equal("<root>\r\n  <a>1</a>\r\n</root>", result.Output);
+    }
+
+    [Fact]
+    public void Decode_Xml解码结果带声明头_声明头保留且不被改写编码()
+    {
+        IrisOperationResult result = IrisOperations.Decode(
+            Method(IrisOperations.XmlDecodeId), "&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;&lt;root/&gt;");
+
+        Assert.True(result.Success);
+        Assert.Equal("<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n<root />", result.Output);
+    }
+
+    [Fact]
     public void Decode_Jwt合法令牌_Header与Payload美化输出且签名段原样标注()
     {
         string token = BuildJwt("{\"alg\":\"HS256\",\"typ\":\"JWT\"}", "{\"sub\":\"1234567890\",\"name\":\"张三\"}", "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c");

@@ -1,7 +1,10 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Xml;
+using System.Xml.Linq;
 
 namespace Daedalus.Tools.Iris;
 
@@ -103,6 +106,24 @@ public static class IrisOperations
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
+    // XML 解码后美化的读取设置：与 Proteus 同一安全基线——禁 DTD、禁外部实体（防 XXE）；
+    // 忽略元素间纯空白文本节点，否则单行 XML 残留的空白会被当作内容保留
+    private static readonly XmlReaderSettings XmlBeautifyReaderSettings = new()
+    {
+        DtdProcessing = DtdProcessing.Prohibit,
+        XmlResolver = null,
+        IgnoreWhitespace = true,
+    };
+
+    // XML 美化输出固定缩进 2（与 JWT 的 JSON 美化一致）；声明头手动前置，
+    // 避免 XmlWriter 面向 StringBuilder 输出时把 encoding 改写成 utf-16
+    private static readonly XmlWriterSettings XmlBeautifyWriterSettings = new()
+    {
+        Indent = true,
+        IndentChars = "  ",
+        OmitXmlDeclaration = true,
+    };
+
     /// <summary>按指定方式编码：Base64 为 UTF-8 字节序列的 Base64；URL 为 <see cref="Uri.EscapeDataString"/>。</summary>
     public static IrisOperationResult Encode(IrisMethod method, string input)
     {
@@ -140,9 +161,7 @@ public static class IrisOperations
             {
                 Base64DecodeId => DecodeBase64(input),
                 UrlDecodeId => Uri.UnescapeDataString(input),
-                // 选用 HtmlDecode 的理由：XML 的五个预定义实体与数字实体（&#NN; / &#xHH;）
-                // 都是 HTML 实体的子集，BCL 没有独立的 XML 实体解码 API
-                XmlDecodeId => WebUtility.HtmlDecode(input),
+                XmlDecodeId => DecodeXmlEntities(input),
                 JwtDecodeId => DecodeJwt(input),
                 // 未知 id 属编程错误（方式清单固定），抛出让 App 兜底，不伪装成输入错误
                 _ => throw new InvalidOperationException($"未知解码方式：{method.Id}"),
@@ -220,6 +239,50 @@ public static class IrisOperations
     {
         byte[] bytes = Convert.FromBase64String(input);
         return StrictUtf8.GetString(bytes);
+    }
+
+    /// <summary>
+    /// XML 实体解码：选用 <see cref="WebUtility.HtmlDecode"/> 的理由——XML 的五个预定义实体与
+    /// 数字实体（&amp;#NN; / &amp;#xHH;）都是 HTML 实体的子集，BCL 没有独立的 XML 实体解码 API。
+    /// 解码结果若为合法 XML 则美化排版（缩进 2、自动换行），否则原样返回。
+    /// </summary>
+    private static string DecodeXmlEntities(string input)
+    {
+        string decoded = WebUtility.HtmlDecode(input);
+        return TryBeautifyXml(decoded, out string? beautified) ? beautified : decoded;
+    }
+
+    /// <summary>尝试按 XML 美化排版；非法 XML（含 DOCTYPE，按安全基线拒绝）返回 false，由调用方原样输出。</summary>
+    private static bool TryBeautifyXml(string input, [NotNullWhen(true)] out string? beautified)
+    {
+        try
+        {
+            XDocument document;
+            using (XmlReader reader = XmlReader.Create(new StringReader(input), XmlBeautifyReaderSettings))
+            {
+                document = XDocument.Load(reader);
+            }
+
+            var builder = new StringBuilder();
+            if (document.Declaration is not null)
+            {
+                builder.Append(document.Declaration.ToString()).Append("\r\n");
+            }
+
+            using (XmlWriter writer = XmlWriter.Create(builder, XmlBeautifyWriterSettings))
+            {
+                document.Save(writer);
+            }
+
+            beautified = builder.ToString();
+            return true;
+        }
+        catch (XmlException)
+        {
+            // 解码结果不是 XML 属正常输入（如纯文本），按原样输出处理而非错误
+            beautified = null;
+            return false;
+        }
     }
 
     /// <summary>
