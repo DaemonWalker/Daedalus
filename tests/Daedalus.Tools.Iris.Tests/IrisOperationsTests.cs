@@ -179,6 +179,17 @@ public class IrisOperationsTests
     }
 
     [Fact]
+    public void Decode_Xml换行数字实体_还原为换行字符()
+    {
+        // 多行文本被 XML 编码进属性/单行时，换行常编码为 &#10;（&#xA;），解码须还原为 \n；
+        // 输出含裸 LF 时由界面层规范化为 \r\n 显示（多行 TextBox 不认裸 \n）
+        IrisOperationResult result = IrisOperations.Decode(Method(IrisOperations.XmlDecodeId), "a&#10;b&#xA;c");
+
+        Assert.True(result.Success);
+        Assert.Equal("a\nb\nc", result.Output);
+    }
+
+    [Fact]
     public void Decode_Xml无实体输入_原样返回()
     {
         IrisOperationResult result = IrisOperations.Decode(Method(IrisOperations.XmlDecodeId), "普通文本");

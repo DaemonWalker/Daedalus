@@ -421,8 +421,15 @@ internal sealed class IrisPanel : UserControl
         _statusLabel.Text = result.StatusText;
         if (result.Output is not null)
         {
-            _outputBox.Text = result.Output;
+            _outputBox.Text = NormalizeToCrLf(result.Output);
         }
+    }
+
+    // WinForms 多行 TextBox 只认 \r\n 换行，裸 \n 全部渲染成一行；
+    // 解码结果常带 LF 换行（&#10; → \n、%0A → \n、.NET PEM 导出亦为 LF），显示前统一规范化
+    private static string NormalizeToCrLf(string text)
+    {
+        return text.Replace("\r\n", "\n").Replace('\r', '\n').Replace("\n", "\r\n");
     }
 
     private void ClearAll()
