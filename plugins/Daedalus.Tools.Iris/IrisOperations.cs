@@ -157,16 +157,20 @@ public static class IrisOperations
 
         try
         {
+            string? xmlBeautifyNote = null;
             string output = method.Id switch
             {
                 Base64DecodeId => DecodeBase64(input),
                 UrlDecodeId => Uri.UnescapeDataString(input),
-                XmlDecodeId => DecodeXmlEntities(input),
+                XmlDecodeId => DecodeXmlEntities(input, out xmlBeautifyNote),
                 JwtDecodeId => DecodeJwt(input),
                 // 未知 id 属编程错误（方式清单固定），抛出让 App 兜底，不伪装成输入错误
                 _ => throw new InvalidOperationException($"未知解码方式：{method.Id}"),
             };
-            return new IrisOperationResult(true, $"解码完成（{method.DisplayName}）", output);
+            string statusText = xmlBeautifyNote is null
+                ? $"解码完成（{method.DisplayName}）"
+                : $"解码完成（{method.DisplayName}），{xmlBeautifyNote}";
+            return new IrisOperationResult(true, statusText, output);
         }
         catch (UriFormatException ex)
         {
@@ -244,21 +248,36 @@ public static class IrisOperations
     /// <summary>
     /// XML 实体解码：选用 <see cref="WebUtility.HtmlDecode"/> 的理由——XML 的五个预定义实体与
     /// 数字实体（&amp;#NN; / &amp;#xHH;）都是 HTML 实体的子集，BCL 没有独立的 XML 实体解码 API。
-    /// 解码结果若为合法 XML 则美化排版（缩进 2、自动换行），否则原样返回。
+    /// 解码结果若为合法 XML 则美化排版（缩进 2、自动换行），否则原样返回并在
+    /// <paramref name="beautifyNote"/> 给出未美化原因（状态栏展示，避免静默降级）。
     /// </summary>
-    private static string DecodeXmlEntities(string input)
+    private static string DecodeXmlEntities(string input, out string? beautifyNote)
     {
         string decoded = WebUtility.HtmlDecode(input);
-        return TryBeautifyXml(decoded, out string? beautified) ? beautified : decoded;
+        beautifyNote = null;
+        if (string.IsNullOrWhiteSpace(decoded))
+        {
+            return decoded;
+        }
+
+        if (TryBeautifyXml(decoded, out string? beautified, out string? failureReason))
+        {
+            return beautified;
+        }
+
+        beautifyNote = $"结果不是可美化的 XML（{failureReason}），已原样输出";
+        return decoded;
     }
 
-    /// <summary>尝试按 XML 美化排版；非法 XML（含 DOCTYPE，按安全基线拒绝）返回 false，由调用方原样输出。</summary>
-    private static bool TryBeautifyXml(string input, [NotNullWhen(true)] out string? beautified)
+    /// <summary>尝试按 XML 美化排版；非法 XML（含 DOCTYPE，按安全基线拒绝）返回 false 并给出原因，由调用方原样输出。</summary>
+    private static bool TryBeautifyXml(string input, [NotNullWhen(true)] out string? beautified, out string? failureReason)
     {
         try
         {
+            // 解析前先 Trim：XML 声明头必须位于文档最前，粘贴内容首尾的空行/空白会让合法 XML 误判失败
+            string trimmed = input.Trim();
             XDocument document;
-            using (XmlReader reader = XmlReader.Create(new StringReader(input), XmlBeautifyReaderSettings))
+            using (XmlReader reader = XmlReader.Create(new StringReader(trimmed), XmlBeautifyReaderSettings))
             {
                 document = XDocument.Load(reader);
             }
@@ -275,12 +294,14 @@ public static class IrisOperations
             }
 
             beautified = builder.ToString();
+            failureReason = null;
             return true;
         }
-        catch (XmlException)
+        catch (XmlException ex)
         {
             // 解码结果不是 XML 属正常输入（如纯文本），按原样输出处理而非错误
             beautified = null;
+            failureReason = ex.Message;
             return false;
         }
     }

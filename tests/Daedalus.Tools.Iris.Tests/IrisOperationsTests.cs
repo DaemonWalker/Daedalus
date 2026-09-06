@@ -207,6 +207,28 @@ public class IrisOperationsTests
     }
 
     [Fact]
+    public void Decode_Xml输入首尾含空行_Trim后正常美化排版()
+    {
+        // 多行文本框粘贴常在首尾带入空行；声明头前一旦出现空白，不 Trim 就会解析失败退化为单行原样输出
+        IrisOperationResult result = IrisOperations.Decode(
+            Method(IrisOperations.XmlDecodeId), "\r\n&lt;root&gt;&lt;a&gt;1&lt;/a&gt;&lt;/root&gt;\r\n");
+
+        Assert.True(result.Success);
+        Assert.Equal("<root>\r\n  <a>1</a>\r\n</root>", result.Output);
+    }
+
+    [Fact]
+    public void Decode_Xml结果非法Xml_原样输出且状态栏提示未美化()
+    {
+        // 解码结果是 XML 片段（多个根元素）：无法美化，原样输出并在状态栏说明原因
+        IrisOperationResult result = IrisOperations.Decode(Method(IrisOperations.XmlDecodeId), "&lt;a&gt;1&lt;/a&gt;&lt;b&gt;2&lt;/b&gt;");
+
+        Assert.True(result.Success);
+        Assert.Equal("<a>1</a><b>2</b>", result.Output);
+        Assert.Contains("已原样输出", result.StatusText);
+    }
+
+    [Fact]
     public void Decode_Jwt合法令牌_Header与Payload美化输出且签名段原样标注()
     {
         string token = BuildJwt("{\"alg\":\"HS256\",\"typ\":\"JWT\"}", "{\"sub\":\"1234567890\",\"name\":\"张三\"}", "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c");
