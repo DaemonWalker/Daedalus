@@ -4,6 +4,8 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <UseWindowsForms>true</UseWindowsForms>
+    <!-- 应用图标（assets/New-AppIcon.ps1 生成）；.NET 5+ 窗口标题栏默认使用 exe 图标，无需逐窗体设置 -->
+    <ApplicationIcon>daedalus.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
