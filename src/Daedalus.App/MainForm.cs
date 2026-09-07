@@ -48,6 +48,8 @@ internal sealed class MainForm : Form
         _loggingSettings = loggingSettings;
 
         Text = "Daedalus";
+        // 嵌入资源逻辑名 = 根命名空间 + 文件名（Daedalus.App.daedalus.ico）
+        Icon = new Icon(typeof(MainForm), "daedalus.ico");
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(1024, 768);
         WindowState = FormWindowState.Maximized;

@@ -29,6 +29,7 @@ internal sealed class SettingsForm : Form
         ArgumentNullException.ThrowIfNull(logger);
 
         Text = "设置";
+        Icon = new Icon(typeof(SettingsForm), "daedalus.ico");
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;

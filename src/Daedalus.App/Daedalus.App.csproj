@@ -4,9 +4,14 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <UseWindowsForms>true</UseWindowsForms>
-    <!-- 应用图标（assets/New-AppIcon.ps1 生成）；.NET 5+ 窗口标题栏默认使用 exe 图标，无需逐窗体设置 -->
+    <!-- 应用图标（assets/New-AppIcon.ps1 生成）：ApplicationIcon 管 exe/任务栏/资源管理器；
+         窗口标题栏图标需窗体显式设置（Form 默认图标不取 exe 图标），故同时嵌入程序集供窗体加载 -->
     <ApplicationIcon>daedalus.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="daedalus.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- 组合根直接配置 Serilog 滚动文件管道（NFR-001） -->
