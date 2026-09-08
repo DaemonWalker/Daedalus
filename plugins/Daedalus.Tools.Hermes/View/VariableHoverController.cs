@@ -11,7 +11,7 @@ namespace Daedalus.Tools.Hermes.View;
 /// <see cref="VariableHoverPopup"/>。支持 URL 输入框、请求头/urlencoded 表格的值列、
 /// FastColoredTextBox 请求体编辑器三种输入位置（hermes.md §6.1）。
 /// </summary>
-internal sealed class VariableHoverController
+internal sealed class VariableHoverController : IDisposable
 {
     private const int HoverDelayMs = 500;
 
@@ -80,6 +80,13 @@ internal sealed class VariableHoverController
         };
         // 点击立即取消待触发的悬浮
         control.MouseDown += (_, _) => _hoverTimer.Stop();
+    }
+
+    /// <summary>释放悬浮弹窗（Form）与计时器；随所属面板释放（step 19 起弹窗不再随面板泄漏）。</summary>
+    public void Dispose()
+    {
+        _hoverTimer.Dispose();
+        _popup.Dispose();
     }
 
     private void OnHoverTick(object? sender, EventArgs e)

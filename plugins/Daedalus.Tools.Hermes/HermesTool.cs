@@ -56,12 +56,12 @@ public sealed class HermesTool : ITool, IToolSettingsProvider
         services.AddSingleton(sp => new HistorySearch(GetDataDirectory(sp), sp.GetRequiredService<ILogger>()));
         services.AddSingleton<RecentHistoryReader>();
 
-        // 视图树（transient）：每次开标签页解析新实例；RequestEditorPanel 依赖运行时委托，由 HermesPanel 手工构造
+        // 视图树（transient）：每次开标签页解析新实例；RequestTabView 及其编辑/响应子控件由各面板
+        // 经 scope 的 ActivatorUtilities 手工构造（依赖运行时委托，不进容器，step 19）
         services.AddTransient<ScriptHost>();
         services.AddTransient<ResponseBeautifier>();
         services.AddTransient<CollectionPanel>();
         services.AddTransient<HistoryPanel>();
-        services.AddTransient<ResponsePanel>();
         services.AddTransient<HermesPanel>();
         services.AddTransient<HermesSettingsPanel>();
     }

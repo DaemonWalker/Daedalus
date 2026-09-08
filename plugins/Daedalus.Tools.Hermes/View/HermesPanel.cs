@@ -4,49 +4,55 @@ using Daedalus.Abstractions;
 using Daedalus.Tools.Hermes.Collections;
 using Daedalus.Tools.Hermes.Editing;
 using Daedalus.Tools.Hermes.History;
-using Daedalus.Tools.Hermes.Http;
-using Daedalus.Tools.Hermes.Response;
-using Daedalus.Tools.Hermes.Scripting;
 using Daedalus.Tools.Hermes.Settings;
 using Daedalus.Tools.Hermes.Variables;
+
+using Microsoft.Extensions.DependencyInjection;
 
 using Serilog;
 
 namespace Daedalus.Tools.Hermes.View;
 
 /// <summary>
-/// Hermes 主面板（hermes.md §3）：顶部环境栏、左侧集合树/历史、右侧请求编辑区/响应区、底部状态栏。
-/// 界面保持薄：发送编排在 <see cref="SendOrchestrator"/>，美化在 <see cref="ResponseBeautifier"/>，
-/// 脏标记在 <see cref="RequestDraft"/>。
+/// Hermes 主面板（hermes.md §3）：顶部环境栏、左侧集合树/历史、右侧请求多标签页（<see cref="RequestTabView"/>）、
+/// 底部状态栏。请求编辑/响应/发送等按 tab 隔离的状态全部在 RequestTabView；面板保留共享职责：
+/// 环境栏与环境缓存、状态栏、历史搜索、导入、布局持久化与 tab 管理。
 /// </summary>
 internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
 {
     private const string NoEnvironmentText = "（未启用）";
+    private const int CloseButtonSize = 16;
+
+    // 无布局记录且无活动 tab 时落盘使用的默认右栏比例（与 hermes.md §11.4 示例一致）
+    private const double DefaultRightRatio = 0.55;
 
     private readonly ILogger _logger;
-    private readonly SendOrchestrator _orchestrator;
     private readonly CollectionStore _collectionStore;
     private readonly EnvironmentStore _environmentStore;
-    private readonly HistoryStore _historyStore;
     private readonly HermesSettingsStore _settingsStore;
     private readonly RecentHistoryReader _historyReader;
     private readonly HistoryArchive _historyArchive;
     private readonly HistorySearch _historySearch;
-    private readonly ResponseBeautifier _beautifier;
+
+    // 当前标签页 scope 的 provider（MS DI 解析面板时注入）：新建 tab 用它 ActivatorUtilities 手工构造，
+    // transient 依赖（ScriptHost/ResponseBeautifier 等）随 scope 与面板同生灭
+    private readonly IServiceProvider _services;
+
     private readonly VariableHoverController _hover;
-    private readonly ScriptHost _scriptHost;
     private readonly PostmanImporter _postmanImporter = new();
     private readonly CurlImporter _curlImporter = new();
 
     private readonly ComboBox _envCombo;
     private readonly CollectionPanel _collectionPanel;
     private readonly HistoryPanel _historyPanel;
-    private readonly RequestEditorPanel _editor;
-    private readonly ResponsePanel _responsePanel;
     private readonly ToolStripStatusLabel _statusLabel;
     private readonly SplitContainer _mainSplit;
     private readonly SplitContainer _leftSplit;
-    private readonly SplitContainer _rightSplit;
+    private readonly TabControl _tabs;
+    private readonly TabPage _plusPage;
+
+    // 各请求标签页 × 按钮的命中区域，在 OwnerDraw 时计算；标签页增删后索引位移，需清空重算
+    private readonly Dictionary<int, Rectangle> _closeButtonBounds = [];
 
     private HermesSettings _settings = HermesSettings.Default;
     private EnvironmentData _environmentData = EnvironmentData.Empty;
@@ -58,53 +64,43 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
     // 也会触发 SplitterMoved，不拦住会把默认布局覆盖写回刚读出的比例
     private bool _layoutLoaded;
 
-    // 发送状态：非 null 表示正在发送（发送按钮此时为"取消"）
-    private CancellationTokenSource? _sendCts;
-
     // 历史搜索状态：_searchCts 管直搜；_deeperCts 非 null 表示归档搜索进行中（"搜索更久"按钮此时为"停止"）
     private CancellationTokenSource? _searchCts;
     private CancellationTokenSource? _deeperCts;
     private string _currentKeyword = string.Empty;
 
-    // 当前正在编辑的树中请求；null 表示编辑区未绑定树节点（如历史重放）
-    private CollectionPanel.RequestNodeEventArgs? _editingRequest;
+    // 移除标签页期间抑制 ＋tab 的自动新建（选中项被动移到 ＋tab 不应又开草稿）
+    private bool _suppressPlusCreate;
 
     // 加载/刷新环境下拉期间抑制事件，避免把未加载完的状态写回 environments.json
     private bool _suppressEvents = true;
 
     /// <summary>
-    /// 构造注入（step 14，hermes.md §4.1）：引擎/编排/Store 等为跨标签共享的 singleton，子面板为 transient。
-    /// 注入的 ILogger 即宿主按插件 id 打好 SourceContext 的实例（不再需要 host.GetLogger）。
+    /// 构造注入（step 14/19，hermes.md §4.1）：Store 等为跨标签共享的 singleton，子面板为 transient；
+    /// 请求编辑相关服务（SendOrchestrator/ScriptHost/ResponseBeautifier 等）不再进面板，
+    /// 由各 <see cref="RequestTabView"/> 经 <paramref name="services"/>（当前 scope）手工构造。
     /// </summary>
     public HermesPanel(
         ILogger logger,
-        SendOrchestrator orchestrator,
         CollectionStore collectionStore,
         EnvironmentStore environmentStore,
-        HistoryStore historyStore,
         HermesSettingsStore settingsStore,
         RecentHistoryReader historyReader,
         HistoryArchive historyArchive,
         HistorySearch historySearch,
-        ResponseBeautifier beautifier,
-        ScriptHost scriptHost,
         CollectionPanel collectionPanel,
         HistoryPanel historyPanel,
-        ResponsePanel responsePanel)
+        IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(logger);
-        ArgumentNullException.ThrowIfNull(orchestrator);
         _logger = logger;
-        _orchestrator = orchestrator;
         _collectionStore = collectionStore;
         _environmentStore = environmentStore;
-        _historyStore = historyStore;
         _settingsStore = settingsStore;
         _historyReader = historyReader;
         _historyArchive = historyArchive;
         _historySearch = historySearch;
-        _beautifier = beautifier;
-        _scriptHost = scriptHost;
+        _services = services;
         _hover = new VariableHoverController(() => _environmentData.FindActive(), SetVariableFromHoverAsync);
 
         _envCombo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
@@ -120,7 +116,7 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         topBar.Controls.Add(manageEnvButton);
         topBar.Controls.Add(importButton);
 
-        // 子面板由容器以 transient 注入；运行时委托（悬浮编辑）与 RequestEditorPanel 保留手工接线
+        // 子面板由容器以 transient 注入；运行时委托（悬浮编辑）与各请求 tab 保留手工接线
         _collectionPanel = collectionPanel;
         _collectionPanel.Dock = DockStyle.Fill;
         _historyPanel = historyPanel;
@@ -129,16 +125,23 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         _leftSplit.Panel1.Controls.Add(_collectionPanel);
         _leftSplit.Panel2.Controls.Add(_historyPanel);
 
-        _editor = new RequestEditorPanel(_hover) { Dock = DockStyle.Fill };
-        _responsePanel = responsePanel;
-        _responsePanel.Dock = DockStyle.Fill;
-        _rightSplit = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
-        _rightSplit.Panel1.Controls.Add(_editor);
-        _rightSplit.Panel2.Controls.Add(_responsePanel);
+        // 右栏为请求多标签页（step 19）：OwnerDraw 画 × 关闭按钮，画法参照外壳 MainForm；
+        // 末尾固定 ＋tab，选中即新建空白草稿 tab
+        _tabs = new TabControl
+        {
+            Dock = DockStyle.Fill,
+            DrawMode = TabDrawMode.OwnerDrawFixed,
+            Padding = new Point(20, 4),
+        };
+        _plusPage = new TabPage("＋");
+        _tabs.TabPages.Add(_plusPage);
+        _tabs.DrawItem += Tabs_DrawItem;
+        _tabs.MouseClick += Tabs_MouseClick;
+        _tabs.SelectedIndexChanged += Tabs_SelectedIndexChanged;
 
         _mainSplit = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Vertical, SplitterDistance = 260 };
         _mainSplit.Panel1.Controls.Add(_leftSplit);
-        _mainSplit.Panel2.Controls.Add(_rightSplit);
+        _mainSplit.Panel2.Controls.Add(_tabs);
 
         _statusLabel = new ToolStripStatusLabel { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
         var statusStrip = new StatusStrip();
@@ -153,12 +156,9 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         _settingsStore.Changed += SettingsStore_Changed;
         _mainSplit.SplitterMoved += async (_, _) => await SaveLayoutAsync();
         _leftSplit.SplitterMoved += async (_, _) => await SaveLayoutAsync();
-        _rightSplit.SplitterMoved += async (_, _) => await SaveLayoutAsync();
         _collectionPanel.RequestOpened += CollectionPanel_RequestOpened;
         _collectionPanel.CollectionsChanged += async (_, affected) => await SaveCollectionsAsync(affected);
         _collectionPanel.CollectionDeleteRequested += async (_, collection) => await DeleteCollectionAsync(collection);
-        _editor.SendRequested += async (_, _) => await SendOrCancelAsync();
-        _editor.SaveRequested += (_, _) => SaveCurrentEditing();
         _historyPanel.ReplayRequested += (_, entry) => ReplayHistory(entry);
         _historyPanel.SearchRequested += async (_, keyword) => await RunHistorySearchAsync(keyword);
         _historyPanel.SearchDeeperRequested += async (_, _) => await RunDeeperSearchAsync();
@@ -166,28 +166,24 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         Load += HermesPanel_Load;
     }
 
-    /// <summary>FR-HERMES-012：编辑内容未保存时关闭需提示。</summary>
+    /// <summary>FR-HERMES-012：逐个咨询各请求标签页（先激活被询问的 tab），任一取消则中止关闭。</summary>
     public bool ConfirmClose()
     {
-        if (!_editor.IsDirty)
+        foreach (TabPage page in _tabs.TabPages)
         {
-            return true;
+            if (page.Tag is not RequestTabView tab)
+            {
+                continue;
+            }
+
+            _tabs.SelectedTab = page;
+            if (!tab.ConfirmClose())
+            {
+                return false;
+            }
         }
 
-        DialogResult choice = MessageBox.Show(this,
-            "当前请求有未保存的修改。是否保存？\n（是＝保存并关闭；否＝放弃修改；取消＝不关闭）",
-            "未保存的修改", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
-        switch (choice)
-        {
-            case DialogResult.Cancel:
-                return false;
-            case DialogResult.Yes when _editingRequest is not null:
-                // 关闭在即，保存即发即弃：Store 不依赖控件，写盘在后台完成后进程自然收尾
-                SaveCurrentEditing();
-                return true;
-            default:
-                return true;
-        }
+        return true;
     }
 
     private async void HermesPanel_Load(object? sender, EventArgs e)
@@ -227,6 +223,9 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
 
             await RefreshHistoryAsync();
 
+            // 启动即开一个空白草稿 tab（step 19）
+            NewRequestTab();
+
             // 启动时后台归档检查（hermes.md §10.2，FR-HERMES-053）：即发即弃，不拖慢面板加载
             _ = RunStartupArchiveCheckAsync();
         }
@@ -243,9 +242,175 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         }
     }
 
+    // ---------- 请求标签页管理（step 19） ----------
+
+    /// <summary>新建空白草稿 tab（插入 ＋tab 左侧并选中）；有布局记录时应用 rightRatio。</summary>
+    private RequestTabView NewRequestTab()
+    {
+        var tab = ActivatorUtilities.CreateInstance<RequestTabView>(
+            _services,
+            _hover,
+            (Func<EnvironmentData>)(() => _environmentData),
+            (Func<HermesSettings>)(() => _settings));
+        tab.Dock = DockStyle.Fill;
+        var page = new TabPage();
+        page.Controls.Add(tab);
+        page.Tag = tab;
+
+        tab.StatusChanged += (_, text) => _statusLabel.Text = text;
+        tab.DirtyChanged += (_, _) => UpdateTabTitle(page, tab);
+        tab.TitleChanged += (_, _) => UpdateTabTitle(page, tab);
+        tab.SaveToCollectionRequested += RequestTab_SaveToCollectionRequested;
+        tab.EnvironmentUpdated += (_, data) =>
+        {
+            _environmentData = data;
+            RefreshEnvironmentCombo();
+        };
+        tab.HistoryChanged += async (_, _) => await RefreshHistoryAsync();
+        tab.SplitterMoved += (_, _) => RequestTab_SplitterMoved(tab);
+
+        _tabs.TabPages.Insert(_tabs.TabPages.IndexOf(_plusPage), page);
+        _closeButtonBounds.Clear();
+        if (_settings.Layout is { } layout)
+        {
+            tab.ApplyRightRatio(layout.RightRatio);
+        }
+
+        _tabs.SelectedTab = page;
+        UpdateTabTitle(page, tab);
+        return tab;
+    }
+
+    /// <summary>移除并释放一个请求 tab（调用方须已完成关闭确认）。</summary>
+    private void RemoveRequestTab(TabPage page)
+    {
+        _suppressPlusCreate = true;
+        try
+        {
+            _tabs.TabPages.Remove(page);
+        }
+        finally
+        {
+            _suppressPlusCreate = false;
+        }
+
+        _closeButtonBounds.Clear();
+        page.Dispose();
+    }
+
+    /// <summary>标签标题 = 请求名 + 未保存标记（*）。</summary>
+    private static void UpdateTabTitle(TabPage page, RequestTabView tab) =>
+        page.Text = tab.IsDirty ? tab.Title + " *" : tab.Title;
+
+    private void Tabs_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        // 选中末尾 ＋tab 即在其左侧新建空白草稿 tab 并选中它
+        if (!_suppressPlusCreate && _tabs.SelectedTab == _plusPage)
+        {
+            NewRequestTab();
+        }
+    }
+
+    private void Tabs_DrawItem(object? sender, DrawItemEventArgs e)
+    {
+        e.DrawBackground();
+        TabPage page = _tabs.TabPages[e.Index];
+        Rectangle tabBounds = _tabs.GetTabRect(e.Index);
+        if (page == _plusPage)
+        {
+            TextRenderer.DrawText(e.Graphics, page.Text, _tabs.Font, tabBounds, _tabs.ForeColor,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            return;
+        }
+
+        var textBounds = new Rectangle(
+            tabBounds.X + 6,
+            tabBounds.Y,
+            tabBounds.Width - CloseButtonSize - 16,
+            tabBounds.Height);
+        TextRenderer.DrawText(
+            e.Graphics,
+            page.Text,
+            _tabs.Font,
+            textBounds,
+            _tabs.ForeColor,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+
+        var closeBounds = new Rectangle(
+            tabBounds.Right - CloseButtonSize - 6,
+            tabBounds.Y + (tabBounds.Height - CloseButtonSize) / 2,
+            CloseButtonSize,
+            CloseButtonSize);
+        _closeButtonBounds[e.Index] = closeBounds;
+        TextRenderer.DrawText(
+            e.Graphics,
+            "×",
+            _tabs.Font,
+            closeBounds,
+            Color.Gray,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+    }
+
+    private void Tabs_MouseClick(object? sender, MouseEventArgs e)
+    {
+        for (int i = 0; i < _tabs.TabPages.Count; i++)
+        {
+            TabPage page = _tabs.TabPages[i];
+            if (page == _plusPage || page.Tag is not RequestTabView tab)
+            {
+                continue;
+            }
+
+            bool isHit = e.Button == MouseButtons.Middle
+                ? _tabs.GetTabRect(i).Contains(e.Location)
+                : e.Button == MouseButtons.Left
+                    && _closeButtonBounds.TryGetValue(i, out Rectangle bounds)
+                    && bounds.Contains(e.Location);
+            if (isHit)
+            {
+                // 先激活被关闭的 tab，让用户看清确认框针对哪个请求
+                _tabs.SelectedTab = page;
+                if (tab.ConfirmClose())
+                {
+                    RemoveRequestTab(page);
+                }
+
+                return;
+            }
+        }
+    }
+
+    private void RequestTab_SaveToCollectionRequested(object? sender, RequestTabView tab)
+    {
+        // tab 已把更新后的节点放进 BoundTreeNode；树写回会触发 CollectionsChanged → 集合持久化
+        if (tab.BoundTreeNode is { } bound)
+        {
+            _collectionPanel.UpdateRequestNode(bound.TreeNode, bound.Node);
+        }
+    }
+
+    /// <summary>任一 tab 拖动分隔条：比例落盘并同步应用到全部 tab（ApplyRightRatio 内部抑制事件，不递归）。</summary>
+    private void RequestTab_SplitterMoved(RequestTabView source)
+    {
+        if (_restoringLayout || !_layoutLoaded || source.RightRatio is not { } ratio)
+        {
+            return;
+        }
+
+        foreach (TabPage page in _tabs.TabPages)
+        {
+            if (page.Tag is RequestTabView tab && !ReferenceEquals(tab, source))
+            {
+                tab.ApplyRightRatio(ratio);
+            }
+        }
+
+        _ = SaveLayoutAsync(ratio);
+    }
+
     // ---------- 布局持久化（hermes.md §11.4，FR-HERMES-061） ----------
 
-    /// <summary>按比例还原三个分隔条；每个字段独立校验 ∈ (0,1)，非法字段按缺失处理（保留默认布局）。</summary>
+    /// <summary>按比例还原三个分隔条；rightRatio 作用于各请求 tab 内分隔条。每个字段独立校验 ∈ (0,1)，非法字段按缺失处理。</summary>
     private void ApplyLayout(HermesLayout layout)
     {
         _restoringLayout = true;
@@ -253,7 +418,13 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         {
             ApplyRatio(_mainSplit, layout.MainRatio);
             ApplyRatio(_leftSplit, layout.LeftRatio);
-            ApplyRatio(_rightSplit, layout.RightRatio);
+            foreach (TabPage page in _tabs.TabPages)
+            {
+                if (page.Tag is RequestTabView tab)
+                {
+                    tab.ApplyRightRatio(layout.RightRatio);
+                }
+            }
         }
         finally
         {
@@ -275,7 +446,7 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
     }
 
     /// <summary>SplitterMoved（拖动结束）时按比例落盘；还原过程由 _restoringLayout 抑制，不回写。</summary>
-    private async Task SaveLayoutAsync()
+    private async Task SaveLayoutAsync(double? rightRatio = null)
     {
         if (_restoringLayout || !_layoutLoaded)
         {
@@ -283,7 +454,7 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         }
 
         // 尺寸未就绪时不存（比例会算成 0/非法值）
-        if (_mainSplit.Width <= 0 || _leftSplit.Height <= 0 || _rightSplit.Height <= 0)
+        if (_mainSplit.Width <= 0 || _leftSplit.Height <= 0)
         {
             return;
         }
@@ -291,7 +462,7 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         var layout = new HermesLayout(
             HermesLayout.DistanceToRatio(_mainSplit.SplitterDistance, _mainSplit.Width),
             HermesLayout.DistanceToRatio(_leftSplit.SplitterDistance, _leftSplit.Height),
-            HermesLayout.DistanceToRatio(_rightSplit.SplitterDistance, _rightSplit.Height));
+            rightRatio ?? ActiveRequestTab()?.RightRatio ?? _settings.Layout?.RightRatio ?? DefaultRightRatio);
         _settings = _settings with { Layout = layout };
         try
         {
@@ -303,6 +474,8 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
             _statusLabel.Text = $"布局保存失败：{ex.Message}";
         }
     }
+
+    private RequestTabView? ActiveRequestTab() => _tabs.SelectedTab?.Tag as RequestTabView;
 
     // Store 为跨标签共享 singleton：设置经统一设置窗口修改后广播到此，同步本面板的发送参数副本，
     // 否则后续布局落盘（SaveLayoutAsync 整体回写 settings.json）会把新设置覆盖回旧值
@@ -317,6 +490,8 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         {
             // Store 是进程级 singleton，不退订会让已关闭的面板一直被它引用
             _settingsStore.Changed -= SettingsStore_Changed;
+            // 悬浮弹窗是独立 Form，不随控件树释放，由 controller 统一 Dispose
+            _hover.Dispose();
         }
 
         base.Dispose(disposing);
@@ -424,54 +599,17 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
 
     private void CollectionPanel_RequestOpened(object? sender, CollectionPanel.RequestNodeEventArgs args)
     {
-        if (!ConfirmDiscardOrSave())
+        // 按 TreeNode 引用查重：已打开则聚焦，不再弹切换保存确认（step 19）
+        foreach (TabPage page in _tabs.TabPages)
         {
-            // 用户取消切换：把树选择还原回正在编辑的节点（程序设置不触发 AfterSelect 载入）
-            if (_editingRequest is not null)
+            if (page.Tag is RequestTabView tab && ReferenceEquals(tab.BoundTreeNode?.TreeNode, args.TreeNode))
             {
-                _collectionPanel.SelectTreeNode(_editingRequest.TreeNode);
-            }
-
-            return;
-        }
-
-        _editingRequest = args;
-        _editor.LoadDraft(RequestDraft.FromNode(args.Node));
-        _editor.MarkSaved();
-        _editor.SaveEnabled = true;
-        _statusLabel.Text = string.Empty;
-
-        // 切换请求先清空响应区，再尝试回填该请求最近一次的历史响应
-        _responsePanel.Clear();
-        _ = ShowLatestHistoryAsync(args.Node);
-    }
-
-    /// <summary>切换请求后回填最近一次历史响应（即发即弃）；期间界面内容已变化（再次切换/新发送）则放弃回填。</summary>
-    private async Task ShowLatestHistoryAsync(CollectionNode node)
-    {
-        int clearedVersion = _responsePanel.DisplayVersion;
-        try
-        {
-            string url = node.Url ?? string.Empty;
-            if (url.Length == 0)
-            {
+                _tabs.SelectedTab = page;
                 return;
             }
-
-            HistoryEntry? entry = await _historyReader.FindLatestAsync(node.Method ?? "GET", url);
-            if (entry is null || _responsePanel.DisplayVersion != clearedVersion)
-            {
-                return;
-            }
-
-            _responsePanel.ShowHistory(entry, _beautifier);
-            _statusLabel.Text = $"已显示最近一次历史响应（{entry.Timestamp:MM-dd HH:mm:ss}）";
         }
-        catch (Exception ex)
-        {
-            // 回填是辅助动作，失败只记日志不干扰主流程
-            _logger.Error(ex, "回填历史响应失败");
-        }
+
+        NewRequestTab().LoadNode(args);
     }
 
     private async Task SaveCollectionsAsync(IReadOnlyList<HermesCollection> affected)
@@ -488,6 +626,32 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
                 _statusLabel.Text = $"集合保存失败：{ex.Message}";
             }
         }
+
+        SyncTabBindings();
+    }
+
+    /// <summary>
+    /// 集合变更后核对各 tab 的树绑定：TreeNode 仍在树中（含重命名/保存的原地更新）不动；
+    /// 拖拽移动会摘除旧 TreeNode 新建同节点 TreeNode——找回则改绑；找不到则节点已删除，解绑（保存禁用、标题保留）。
+    /// </summary>
+    private void SyncTabBindings()
+    {
+        foreach (TabPage page in _tabs.TabPages)
+        {
+            if (page.Tag is not RequestTabView tab || tab.BoundTreeNode is not { } bound || bound.TreeNode.TreeView is not null)
+            {
+                continue;
+            }
+
+            if (_collectionPanel.FindRequestTreeNode(bound.Node) is { } found)
+            {
+                tab.Rebind(new CollectionPanel.RequestNodeEventArgs(found.Collection, bound.Node, found.TreeNode));
+            }
+            else
+            {
+                tab.Unbind();
+            }
+        }
     }
 
     private async Task DeleteCollectionAsync(HermesCollection collection)
@@ -497,6 +661,21 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
         if (confirm != DialogResult.OK)
         {
             return;
+        }
+
+        // 绑定该集合的 tab 逐个确认（脏时保存/放弃/取消），任一取消则中止删除
+        var boundPages = _tabs.TabPages.Cast<TabPage>()
+            .Where(p => p.Tag is RequestTabView t
+                && t.BoundTreeNode is not null
+                && ReferenceEquals(t.BoundTreeNode.Collection, collection))
+            .ToList();
+        foreach (TabPage page in boundPages)
+        {
+            _tabs.SelectedTab = page;
+            if (page.Tag is RequestTabView tab && !tab.ConfirmClose())
+            {
+                return;
+            }
         }
 
         try
@@ -510,147 +689,12 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
             return;
         }
 
-        if (_editingRequest is not null && ReferenceEquals(_editingRequest.Collection, collection))
+        foreach (TabPage page in boundPages)
         {
-            ClearEditor();
+            RemoveRequestTab(page);
         }
 
         _collectionPanel.RemoveCollection(collection);
-    }
-
-    private void SaveCurrentEditing()
-    {
-        if (_editingRequest is null)
-        {
-            return;
-        }
-
-        CollectionNode updated = _editor.CurrentDraft.ToNode(_editingRequest.Node.Name);
-        _editingRequest = new CollectionPanel.RequestNodeEventArgs(_editingRequest.Collection, updated, _editingRequest.TreeNode);
-        _collectionPanel.UpdateRequestNode(_editingRequest.TreeNode, updated);
-        _editor.MarkSaved();
-        _statusLabel.Text = "已保存";
-    }
-
-    /// <summary>有未保存修改时提示：保存 / 放弃 / 取消。返回 true 表示可以继续（已保存或放弃）。</summary>
-    private bool ConfirmDiscardOrSave()
-    {
-        if (!_editor.IsDirty || _editingRequest is null)
-        {
-            return true;
-        }
-
-        DialogResult choice = MessageBox.Show(this,
-            $"请求「{_editingRequest.Node.Name}」有未保存的修改。是否保存？",
-            "未保存的修改", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
-        switch (choice)
-        {
-            case DialogResult.Yes:
-                SaveCurrentEditing();
-                return true;
-            case DialogResult.No:
-                return true;
-            default:
-                return false;
-        }
-    }
-
-    private void ClearEditor()
-    {
-        _editingRequest = null;
-        _editor.LoadDraft(RequestDraft.Empty);
-        _editor.MarkSaved();
-        _editor.SaveEnabled = false;
-        _responsePanel.Clear();
-    }
-
-    // ---------- 发送 ----------
-
-    private async Task SendOrCancelAsync()
-    {
-        if (_sendCts is not null)
-        {
-            // FR-HERMES-005：取消进行中的请求
-            _sendCts.Cancel();
-            return;
-        }
-
-        RequestDraft draft = _editor.CurrentDraft;
-        if (draft.Url.Length == 0)
-        {
-            _statusLabel.Text = "请输入 URL";
-            return;
-        }
-
-        PreparedRequest prepared = _orchestrator.Prepare(draft, _environmentData.FindActive());
-        if (prepared.UndefinedVariables.Count > 0)
-        {
-            // FR-HERMES-022：未定义变量原样保留并提示
-            _statusLabel.Text = $"未定义变量（已原样发送）：{string.Join("、", prepared.UndefinedVariables)}";
-        }
-
-        _sendCts = new CancellationTokenSource();
-        _editor.SetSending(true);
-        try
-        {
-            SendResult result = await _orchestrator.SendAsync(prepared, _settings, _sendCts.Token);
-            _logger.Debug("发送完成：状态 {Status}，共 {HopCount} 跳，{HasScript}",
-                result.FinalHop.Response.Status, result.Hops.Count,
-                draft.PostResponseScript is not null ? "有后事件脚本" : "无后事件脚本");
-
-            // 后事件脚本（FR-HERMES-040/045）：只针对最终一跳执行一次；异常隔离进"脚本输出"页（FR-HERMES-043）
-            ScriptExecutionResult? scriptResult = null;
-            if (draft.PostResponseScript is not null)
-            {
-                scriptResult = await _scriptHost.RunAsync(
-                    draft.PostResponseScript, result.FinalHop.Response, _environmentData, _settings, _sendCts.Token);
-                if (scriptResult.UpdatedEnvironmentData is not null)
-                {
-                    // pm.environment.set/unset 已落盘（FR-HERMES-044），刷新环境下拉与悬浮编辑的数据源
-                    _environmentData = scriptResult.UpdatedEnvironmentData;
-                    RefreshEnvironmentCombo();
-                }
-            }
-
-            _responsePanel.ShowResult(result, _beautifier, scriptResult);
-
-            string status = $"状态 {result.FinalHop.Response.Status}，耗时 {result.FinalHop.Response.ElapsedMs} ms";
-            if (scriptResult?.Error is not null)
-            {
-                status += "；后事件脚本执行出错（详见响应区“脚本输出”页）";
-            }
-            if (result.RedirectLimitExceeded)
-            {
-                status += "；超过跳转上限（10 跳），已停止跟随";
-            }
-            else if (result.RedirectLoopDetected)
-            {
-                status += "；检测到跳转环，已停止跟随";
-            }
-
-            _statusLabel.Text = status;
-
-            // 历史落盘（hermes.md §5.1：只记最终一跳，异步追加）
-            HistoryEntry entry = _orchestrator.BuildHistoryEntry(prepared, result, DateTimeOffset.Now);
-            await _historyStore.AppendAsync(entry, _settings.ResponseBodyLimitBytes, _sendCts.Token);
-            await RefreshHistoryAsync();
-        }
-        catch (OperationCanceledException)
-        {
-            _statusLabel.Text = "已取消";
-        }
-        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or UriFormatException)
-        {
-            _logger.Warning(ex, "请求发送失败");
-            _responsePanel.ShowError($"发送失败：{ex.Message}");
-            _statusLabel.Text = $"发送失败：{ex.Message}";
-        }
-        finally
-        {
-            _editor.SetSending(false);
-            _sendCts.Dispose();
-            _sendCts = null;
-        }
     }
 
     // ---------- 导入（hermes.md §9） ----------
@@ -726,17 +770,9 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
             return;
         }
 
-        if (!ConfirmDiscardOrSave())
-        {
-            return;
-        }
-
-        // 加载到当前编辑区，不自动入集合（FR-HERMES-034）
-        _editingRequest = null;
-        _editor.LoadDraft(result.Draft);
-        _editor.MarkSaved();
-        _editor.SaveEnabled = false;
-        _statusLabel.Text = "已从 cURL 导入到编辑区（未入集合，需保存请先在集合树中选中请求）";
+        // 导入为新的游离 tab（step 19）：不绑定树节点、保存禁用，不自动入集合（FR-HERMES-034）
+        NewRequestTab().LoadDraft(result.Draft);
+        _statusLabel.Text = "已从 cURL 导入到新标签页（未入集合）";
 
         var notes = new List<string>(result.IgnoredArguments);
         if (result.HasInsecureFlag)
@@ -858,12 +894,7 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
 
     private void ReplayHistory(HistoryEntry entry)
     {
-        if (!ConfirmDiscardOrSave())
-        {
-            return;
-        }
-
-        // 重放到编辑区（FR-HERMES-052）：不绑定树节点，用户自行保存
+        // 重放为新的游离 tab（step 19，FR-HERMES-052）：不绑定树节点、保存禁用
         string? contentType = entry.Request.Headers
             .FirstOrDefault(h => h.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase))?.Value;
         var draft = new RequestDraft
@@ -875,11 +906,8 @@ internal sealed class HermesPanel : UserControl, IToolCloseConfirmation
                 ? null
                 : new RequestBody { Kind = RequestBodyKind.Raw, ContentType = contentType, Text = entry.Request.Body },
         };
-        _editingRequest = null;
-        _editor.LoadDraft(draft);
-        _editor.MarkSaved();
-        _editor.SaveEnabled = false;
-        _statusLabel.Text = $"已重放历史记录（{entry.Timestamp:MM-dd HH:mm:ss}）";
+        NewRequestTab().LoadDraft(draft);
+        _statusLabel.Text = $"已重放历史记录（{entry.Timestamp:MM-dd HH:mm:ss}）到新标签页";
     }
 
     /// <summary>环境下拉项：按环境名显示。</summary>

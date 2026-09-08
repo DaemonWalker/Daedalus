@@ -388,8 +388,45 @@ internal sealed class CollectionPanel : UserControl
         ReplaceNode(treeNode, updated);
     }
 
-    /// <summary>程序化选中树节点（如用户取消切换请求后还原选择）；不触发 AfterSelect 的鼠标/键盘载入。</summary>
+    /// <summary>程序化选中树节点；不触发 AfterSelect 的鼠标/键盘载入。</summary>
     public void SelectTreeNode(TreeNode treeNode) => _tree.SelectedNode = treeNode;
+
+    /// <summary>
+    /// 按节点引用查找其在树中的当前位置（step 19：拖拽移动会摘除旧 TreeNode 并新建同节点的
+    /// TreeNode，宿主据此给已打开的请求标签页改绑；找不到表示节点已删除）。
+    /// </summary>
+    public (HermesCollection Collection, TreeNode TreeNode)? FindRequestTreeNode(CollectionNode node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        foreach (TreeNode root in _tree.Nodes)
+        {
+            // 根节点 Tag 在建树时必为 HermesCollection
+            if (root.Tag is HermesCollection collection && FindInChildren(root, node) is { } found)
+            {
+                return (collection, found);
+            }
+        }
+
+        return null;
+    }
+
+    private static TreeNode? FindInChildren(TreeNode parent, CollectionNode node)
+    {
+        foreach (TreeNode child in parent.Nodes)
+        {
+            if (ReferenceEquals(child.Tag, node))
+            {
+                return child;
+            }
+
+            if (FindInChildren(child, node) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
 
     private void ReplaceNode(TreeNode treeNode, CollectionNode updated)
     {
