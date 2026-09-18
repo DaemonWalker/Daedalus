@@ -174,6 +174,12 @@ internal sealed class MainForm : Form
     private void OnTabDrawItem(object? sender, DrawItemEventArgs e)
     {
         e.DrawBackground();
+        // OwnerDraw 已知竞态：标签页增删后原生的绘制请求可能带着过期索引到达，越界索引直接跳过
+        if (e.Index < 0 || e.Index >= _tabs.TabPages.Count)
+        {
+            return;
+        }
+
         Rectangle tabBounds = _tabs.GetTabRect(e.Index);
         var textBounds = new Rectangle(
             tabBounds.X + 6,
