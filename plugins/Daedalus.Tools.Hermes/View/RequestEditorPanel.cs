@@ -76,7 +76,7 @@ internal sealed class RequestEditorPanel : UserControl
         _bodyContentTypeCombo.Text = "application/json";
         _rawBodyBox = new FastColoredTextBox { Dock = DockStyle.Fill, Language = Language.Custom };
         _rawBodyPanel = new Panel { Dock = DockStyle.Fill };
-        _rawBodyPanel.Controls.Add(_rawBodyBox);
+        _rawBodyPanel.Controls.Add(FindBar.Attach(_rawBodyBox));
         _rawBodyPanel.Controls.Add(_bodyContentTypeCombo);
         _bodyFieldsGrid = new KeyValueGrid { Dock = DockStyle.Fill };
         _urlEncodedBodyPanel = new Panel { Dock = DockStyle.Fill, Visible = false };
@@ -112,7 +112,7 @@ internal sealed class RequestEditorPanel : UserControl
         tabs.TabPages.Add(WrapTab("Headers", _headersGrid));
         tabs.TabPages.Add(WrapTab("Body", bodyPanel));
         tabs.TabPages.Add(WrapTab("选项", optionsPanel));
-        tabs.TabPages.Add(WrapTab("后事件脚本", _scriptBox));
+        tabs.TabPages.Add(WrapTab("后事件脚本", FindBar.Attach(_scriptBox)));
 
         Controls.Add(tabs);
         Controls.Add(urlPanel);

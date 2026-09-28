@@ -75,7 +75,7 @@ internal sealed class ResponsePanel : UserControl
         ClearTabs();
         var page = new TabPage("发送失败");
         var box = new FastColoredTextBox { Dock = DockStyle.Fill, ReadOnly = true, Text = message };
-        page.Controls.Add(box);
+        page.Controls.Add(FindBar.Attach(box));
         _hopTabs.TabPages.Add(page);
         _hopTabs.BringToFront();
     }
@@ -119,7 +119,7 @@ internal sealed class ResponsePanel : UserControl
         var bodyPage = new TabPage("Body");
         var bodyBox = new FastColoredTextBox { Dock = DockStyle.Fill, ReadOnly = true, Text = beautified.Text, WordWrap = false };
         FctbHighlight.Apply(bodyBox, beautified.FormatId);
-        bodyPage.Controls.Add(bodyBox);
+        bodyPage.Controls.Add(FindBar.Attach(bodyBox));
 
         var headersPage = new TabPage("Headers");
         var headersGrid = new DataGridView
@@ -150,7 +150,7 @@ internal sealed class ResponsePanel : UserControl
                 : scriptResult.MutationLog.Count > 0
                     ? "脚本执行完成，环境变量变更：\n\n" + string.Join('\n', scriptResult.MutationLog)
                     : "脚本执行完成，无输出。";
-            scriptPage.Controls.Add(new FastColoredTextBox { Dock = DockStyle.Fill, ReadOnly = true, Text = text });
+            scriptPage.Controls.Add(FindBar.Attach(new FastColoredTextBox { Dock = DockStyle.Fill, ReadOnly = true, Text = text }));
             innerTabs.TabPages.Add(scriptPage);
         }
 
